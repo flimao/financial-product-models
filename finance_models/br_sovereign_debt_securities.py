@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
+#%%
+# imports
+
 import datetime as dt
 import numpy as np
 import pandas as pd
 from . import tools
+from seriesbr import bcb
 
-class NTNF:
+#%%
+# ntnf
+class Prefixado:
     def __init__(*args, **kwargs):
         pass
     

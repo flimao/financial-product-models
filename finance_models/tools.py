@@ -25,6 +25,3 @@ def get_holidays_anbima():
     holiday_s = pd.to_datetime(holidays['Data'])
 
     return holiday_s.dt.date
-
-def get_indexes_bcb():
-    pass

@@ -9,7 +9,7 @@
 import datetime as dt
 import numpy as np
 import pandas as pd
-from finance_models.br_sovereign_debt_securities import NTNF
+from finance_models.br_sovereign_debt_securities import Prefixado
 from finance_models import tools
 
 #%%
@@ -46,8 +46,17 @@ def brdebt_change_types(df):
 
 brdebt_raw = pd.read_csv(HISTBRDEBTSEC, sep=';')
 
+#%%
 # test
-x = NTNF()
 
 holidays = tools.get_holidays_anbima()
+
+ntnf31 = Prefixado(
+    vencimento = 2031,
+    taxa_anual = 11.54/100,
+    taxa_cupom = True,
+    dt_compra = '14/02/2022'
+)
+
+cashflow = ntnf31.calcula_pu_ntnf(dt_base = ntnf31.dt_compra, tir = 13.15/100)
 # %%

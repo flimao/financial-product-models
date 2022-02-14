@@ -20,6 +20,7 @@ locale.setlocale(locale.LC_ALL, 'pt_BR')
 money = lambda m: locale.currency(m, grouping = True)
 
 class Money(float):
+    """ class that implements a float whose representation is a string formatted using locale-specific rules """    
     def __str__(self):
         return money(self)
     def __repr__(self):
@@ -78,12 +79,16 @@ def get_holidays_anbima() -> pd.DatetimeIndex:
     """
     downloads and formats the bank holidays between 2001 and 2078 in a pandas.DatetimeIndex format
     """
+    # download holidays file
     holidays_raw = pd.read_excel('https://www.anbima.com.br/feriados/arqs/feriados_nacionais.xls')
+
+    # drops nulls and keeps only de dates column
     holidays = (holidays_raw
         .dropna()
         .drop(columns = ['Dia da Semana', 'Feriado'])
     )
 
+    # process dates in the series
     holiday_s = pd.to_datetime(holidays['Data'])
     holiday_dtidx = pd.DatetimeIndex(holiday_s.dt.date)
     holiday_dtidx.name = 'holidays'
@@ -107,18 +112,27 @@ def get_days(
         In this function, if convention is 'DU/252', return only business days (excluding bank holidays)
         Otherwise return running days (including bank holidays and weekends)
     """
+    # transforms date_begin
     if isinstance(date_begin, str):
         date_begin = str2dt(dtstr = date_begin)
+
+    # transforms date_end
     if isinstance(date_end, str):
         date_end = str2dt(dtstr = date_end)
     
     if convention == 'DU/252':
+        # list business days
         bdays = pd.date_range(start = date_begin, end = date_end, freq = 'B', closed = closed)
 
         if holidays is not None:
+            # shrink holiday list to only between the date range.
+            # this is to improve set performance
             holidays_range = holidays[(holidays >= date_begin.isoformat()) & (holidays <= date_end.isoformat())]
 
+            # set operation: days which are business days but aren't holidays
             bdays_holidays_set = set(bdays) - set(holidays_range)
+
+            # go back to datetimeindex
             bdays_holidays = pd.DatetimeIndex(sorted(list(bdays_holidays_set)))
 
             return bdays_holidays        

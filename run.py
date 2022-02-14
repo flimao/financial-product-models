@@ -44,7 +44,7 @@ def brdebt_change_types(df):
 
     return df
 
-brdebt_raw = pd.read_csv(HISTBRDEBTSEC, sep=';')
+#brdebt_raw = pd.read_csv(HISTBRDEBTSEC, sep=';')
 
 #%%
 # test
@@ -58,5 +58,19 @@ ntnf31 = Prefixado(
     dt_compra = '14/02/2022'
 )
 
-cashflow = ntnf31.calcula_pu_ntnf(dt_base = ntnf31.dt_compra, tir = 13.15/100)
+ltn24 = Prefixado(
+    vencimento = '01/07/2024',
+    taxa_anual = 11.74/100,
+    taxa_cupom = False,
+    dt_compra = '14/02/2022'
+)
+
+ltn26 = Prefixado(
+    vencimento = 2026,
+    taxa_anual = 11.36/100,
+    taxa_cupom = False,
+    dt_compra = '14/02/2022'
+)
+
+#pu, cashflow = ntnf31.calcula_pu_ntnf(dt_base = ntnf31.dt_compra, tir = 13.15/100)
 # %%

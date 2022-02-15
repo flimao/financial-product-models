@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = 'finance_models',
-    version = '0.9.0',    
+    version = '0.9.2',    
 
     description = 'Models for predicting prices of several financial products',
     url = 'https://github.com/flimao/financial-product-models',

@@ -132,7 +132,8 @@ class Prefixado:
 
     def constroi_fluxo(self,
         dt_fim: str or dt.datetime or dt.date or None = None, 
-        frequencia: int = 6 # meses
+        frequencia: int = 6, # meses
+        dt_base: str or dt.datetime or dt.date or None = None, 
     ):
 
         """
@@ -141,6 +142,8 @@ class Prefixado:
         dt_fim: data (str no formato 'DD/MM/YYYY' ou objeto date/datetime): a data do fim dos pagamentos
             Se None, default para data de vencimento
         frequencia: int -> o número de meses entre eventos
+        dt_base: data (str no formato 'DD/MM/YYYY' ou objeto date/datetime): a data que queremos para o começo do fluxo
+            Se None, default para data de compra
         """
         # datas dos pagamentos dos cupons, amortização etc
         # ntnf é só cupons mesmo
@@ -149,8 +152,10 @@ class Prefixado:
         elif isinstance(dt_fim, str):
             dt_fim = tools.str2dt(dt_fim)
 
-        # a data base é a data de compra
-        dt_base = self.dt_compra
+        if dt_base is None:
+            dt_base = self.dt_compra
+        elif isinstance(dt_base, str):
+            dt_base = tools.str2dt(dt_fim)
 
         # a data inicio deve ser ou 01/07/(ANO DA DATA BASE) ou 01/01/(ANO SEGUINTE AO ANO DA DATA BASE), o que ocorrer primeiro
         dt_inicio = dt.date(
@@ -273,7 +278,11 @@ class Prefixado:
         
         # construindo o dataframe de cashflow
         # o índice são as datas dos eventos
-        cashflow_dtidx = self.constroi_fluxo() # os argumentos padrão (dt_fim = data do vencimento e tir = taxa anual) já servem
+        cashflow_dtidx = self.constroi_fluxo(
+            dt_base = dt_base,
+            dt_fim = dt_venc,
+            frequencia = 6 # meses
+        ) # os argumentos padrão (dt_fim = data do vencimento e tir = taxa anual) já servem
 
         # estruturando o dataframe
         # vamos adicionar as colunas uma a uma
@@ -335,7 +344,7 @@ class Prefixado:
         return s
     
     def __repr__(self):
-        r = 'Prefixado('
+        r = f'{self.__class__.__name__}('
         r += f'vencimento = {self.vencimento:%d/%m/%Y}, '
         r += f'taxa_anual = {self.taxa_anual}, '
         

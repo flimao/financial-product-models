@@ -152,10 +152,11 @@ class Prefixado:
         elif isinstance(dt_fim, str):
             dt_fim = tools.str2dt(dt_fim)
 
+        # dt_base default
         if dt_base is None:
             dt_base = self.dt_compra
         elif isinstance(dt_base, str):
-            dt_base = tools.str2dt(dt_fim)
+            dt_base = tools.str2dt(dt_base)
 
         # a data inicio deve ser ou 01/07/(ANO DA DATA BASE) ou 01/01/(ANO SEGUINTE AO ANO DA DATA BASE), o que ocorrer primeiro
         dt_inicio = dt.date(
@@ -183,7 +184,7 @@ class Prefixado:
         taxa_anual: float or None = None,
     ):
         """
-        calcula o PU de um prefixado sem cupom dado o valor futuro (valor de face), o prazo anualizado e a taxa % a.a.
+        calcula o PU de um fluxo dado o valor futuro, o prazo anualizado e a taxa % a.a.
 
         vf: float -> valor de face ou valor futuro. Se None, default para o valor de face padrão (R$ 1000)
         prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
@@ -207,16 +208,17 @@ class Prefixado:
         return pu
 
     def calcula_taxa_anual(self,
-        pu: float, 
+        pu: float,
+        valor_base: float = 100,
         prazo_anual: float or None = None,
-        valor_base: float or None = None
+
     ):
         """
-        calcula a taxa anual % a.a. de um título prefixado sem cupom dados o PU, o prazo anualizado e o valor base ou valor de face
+        calcula a taxa anual % a.a. associada a um fluxo dados o PU (valor presente), o prazo anualizado e o valor base (valor futuro)
 
-        valor_base: float -> valor de face ou valor futuro. Se None, default para o valor de face padrão (R$ 1000)
+        valor_base: float -> valor de face ou valor futuro. Se None, default para R$ 100 (base percentual)
         prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
-        pu: float -> PU correspondente ao prazo anualizado
+        pu: float -> PU correspondente ao prazo anualizado (valor presente)
         """
 
         # prazo_anual default
@@ -226,14 +228,11 @@ class Prefixado:
                 dt_fim = self.vencimento
             )
 
-        # valor base default
-        if valor_base is None:
-            valor_base = self.valor_face
-
-        # valor_base = pu * (1 + taxa_anual) ** prazo_anual
+        # pu = valor_base * (1 + taxa_anual) ** prazo_anual
         taxa_anual = np.exp((np.log(valor_base) - np.log(pu)) / prazo_anual) - 1
         
         return taxa_anual
+
 
     def calcula_pu_ntnf(self,
         dt_base: str or dt.datetime or dt.date or None = None,

@@ -5,3 +5,11 @@ Models for predicting price of several financial products:
 * Brazilian sovereign debt
 
 ... and others to come.
+
+## Installation
+
+```bash
+$ pip install git+ssh://git@github.com/flimao/financial-product-models
+(...)
+Successfully installed finance-models-1.0.0
+```

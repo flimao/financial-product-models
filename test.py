@@ -1,6 +1,10 @@
 import numpy as np
 from finance_models import br_sovereign_debt_securities as brdebt, tools
 import unittest
+
+import warnings
+warnings.filterwarnings('ignore')
+
 class TestTools(unittest.TestCase):
     def setUp(self):
         self.holidays = tools.get_holidays_anbima()
@@ -134,12 +138,12 @@ class TestPrefixado(unittest.TestCase):
             taxa_cupom = False,
         )
         
-        pu = 658.91
-        taxa = ltn26.calcula_taxa_anual(pu = pu)
+        pu = tools.Money(658.91)
+        taxa = ltn26.calcula_taxa_anual(pu = pu, valor_base = 1000)
         taxa_esperada = 0.1136
         self.assertAlmostEqual(
             taxa, taxa_esperada, 4, 
-            f"Taxa de {ltn26} errado. Com PU = {tools.Money(pu)}, a taxa deveria ser '{taxa_esperada:.2%}' a.a., mas o cálculo deu '{taxa:.2%}' a.a."
+            f"Taxa de {ltn26} errado. Com PU = {pu}, a taxa deveria ser '{taxa_esperada:.2%}' a.a., mas o cálculo deu '{taxa:.2%}' a.a."
         )
     
     def test_constroi_fluxo(self):        

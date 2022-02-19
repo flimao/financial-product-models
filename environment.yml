@@ -5,8 +5,6 @@ dependencies:
   - pandas
   - numpy
   - python
-  - jupyter
-  - ipykernel
   - openpyxl
   - xlrd
   - plotly

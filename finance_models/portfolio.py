@@ -9,7 +9,7 @@ class Portfolio:
     def __init__(self, 
         securities_values: pd.DataFrame or pd.Series = None, 
         notionals: pd.DataFrame or pd.Series or None = None,
-        dropna: bool = True,
+        na: str or None = 'drop',
     ):
         """__init__ function
 
@@ -61,9 +61,18 @@ class Portfolio:
             self.notionals = pd.DataFrame(notionals, columns = self.securities_values.columns, index = self.securities_values.index)
             self.portfolio_values = self.securities_values * notionals
         
-        # dropna
-        if dropna:
-            self.portfolio_values.dropna(axis = 1, inplace = True)
+        # drop NaNs
+        if na == 'drop':
+            self.portfolio_values.dropna(
+                how = 'all',  # only when all values are nans in a given date
+                inplace = True,
+            )
+        elif isinstance(na, str):  # na is string but not drop. filling na
+            self.portfolio_values.fillna(
+                method = na,
+                inplace = True,
+            )
+        # if na is None, do nothing to address NaNs
         
         # sum each row (time) of portfolio_values
         self.portfolio_total = self.portfolio_values.sum(axis = 1)
@@ -208,3 +217,118 @@ class VaR(Portfolio):
         es = (var_es * vlr_carteira_atual).mean()
 
         return es
+    
+    # função extra: cálculo da série temporal de VaR
+    def calcula_ts_var(self,
+        retornos: pd.Series or None = None, 
+        alpha: float = 0.05, 
+        valores: pd.Series or None = None,
+        janela_var: int = 1000,
+    ) -> pd.Series:
+        """calcula uma série temporal de Value at Risk para uma série temporal de retornos
+
+        Args:
+            retornos (pd.Series): série temporal de retornos
+            alpha (int or float): intervalo de confianca para o cálculo do VaR
+            valores (pd.Series): série temporal com o valor da carteira em cada instante de tempo
+            janela_var (int): número de períodos para calcular cada VaR
+        Returns:
+            pd.Series: valor dos VaRs calculados
+        """
+        # retornos default
+        if retornos is None:
+            retornos = self.calcula_retorno()
+
+        # valores default
+        if valores is None:
+            valores = self.portfolio_total
+        
+        vars = (retornos
+            # janela rolante do número de períodos para calcular o número de VaR's + 1
+            .rolling(janela_var + 1)
+            # aplicar função para cálculo de cada VaR
+            .apply(
+                lambda retorno_janela: self.calcula_var(
+                    retornos = retorno_janela.iloc[:-1],
+                    alpha = alpha,
+                    vlr_carteira_atual = valores[retorno_janela.index[-1]],
+                ),
+            )
+        )
+        vars.name = f'VaR {1-alpha:.1%}'
+        return vars
+    
+    
+    # função extra: calcula a série temporal de ES
+    def calcula_ts_es(self,
+        retornos: pd.Series or None = None, 
+        alpha: float = 0.05, 
+        valores: pd.Series or None = None,
+        janela_var: int = 1000,
+    ) -> pd.Series:
+        """calcula uma série temporal de Expected Shortfall para uma série temporal de retornos
+
+        Args:
+            retornos (pd.Series): série temporal de retornos
+            alpha (int or float): intervalo de confianca para o cálculo do VaR
+            valores (pd.Series): série temporal com o valor da carteira em cada instante de tempo
+            janela_var (int): número de períodos para calcular cada VaR
+        Returns:
+            pd.Series: valor dos ES's calculados
+        """
+        # retornos default
+        if retornos is None:
+            retornos = self.calcula_retorno()
+
+        # valores default
+        if valores is None:
+            valores = self.portfolio_total
+        
+        es = (retornos
+            # janela rolante do número de períodos para calcular o número de VaR's + 1
+            .rolling(janela_var + 1)
+            # aplicar função para cálculo de cada VaR
+            .apply(
+                lambda retorno_janela: self.calcula_es(
+                    retornos = retorno_janela.iloc[:-1],
+                    alpha = alpha,
+                    vlr_carteira_atual = valores.loc[retorno_janela.index[-1]],
+                ),
+            )
+        )
+        es.name = f'ES {1-alpha:.1%}'
+        return es
+    
+    # função extra: calcula serie temporal de pnl
+    def calcula_pnl(self,
+        precos: pd.Series or None = None, 
+        holding_period: int = 1,
+    ) -> pd.Series:
+        """calcula o retorno simples (PnL)
+
+        Args:
+            precos (pd.Series): série temporal de preços
+            holding_period (int): períodos entre o preço base e o preço atualizado
+            
+        Returns:
+            pd.Series: série temporal de PnL
+        """
+        
+        # precos default
+        if precos is None:
+            precos = self.portfolio_total
+        
+        # construir os retornos
+        ret = (precos
+
+            # janela rolante com o holding_period + 1. Se o holding_period = 1, deseja-se que haja dois elementos na janela (dia 1 - dia 0)
+            .rolling(holding_period + 1)
+
+            # aplicar a função do retorno
+            .apply(
+                lambda precos_holding: precos_holding.iloc[-1] - precos_holding.iloc[0]
+            )
+        )
+        
+        ret.name = 'PnL'
+        return ret

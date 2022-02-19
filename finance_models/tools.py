@@ -34,14 +34,16 @@ CUR = 'BRL'
 #
 # money = lambda m: locale.currency(m, grouping = True)
 
-money = lambda m: babel.numbers.format_currency(m, CUR)
+money = lambda m: babel.numbers.format_currency(m, CUR, locale = 'pt_BR')
 
 class Money(float):
     """ class that implements a float whose representation is a string formatted using locale-specific rules """    
     def __str__(self):
-        return money(self)
+        m = float(self)
+        return money(m)
     def __repr__(self):
-        return money(self)
+        m = float(self)
+        return f'{money(m)}'
     
     # math
     def __add__(self, other):

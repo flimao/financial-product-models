@@ -1,0 +1,15 @@
+name: finance_models
+channels:
+  - defaults
+dependencies:
+  - pandas
+  - numpy
+  - python
+  - openpyxl
+  - xlrd
+  - plotly
+  - matplotlib
+  - seaborn
+  - pytest
+  - pytest-cov
+prefix: C:\ProgramData\Anaconda3\envs\finance_models

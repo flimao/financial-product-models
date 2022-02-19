@@ -36,7 +36,7 @@ jobs:
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run:
           name: Install dependencies (conda)
-          command: conda create -f environment.yml -n finance_models
+          command: conda env create -f environment.yml
       - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above

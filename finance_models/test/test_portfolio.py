@@ -807,20 +807,20 @@ class TestVAR(unittest.TestCase):
     def test_calc_pnl_class(self):
         pnl = self.var.calcula_pnl()
 
-        pnl_1 = pnl.iloc[1]
+        pnl_1 = tools.Money(pnl.iloc[1])
         pnl_1_expected = tools.Money(824.96) # calc Excel
 
         self.assertAlmostEqual(
             pnl_1, pnl_1_expected, delta = tools.Money(0.01),
-            msg = f"Wrong first PnL. Got {pnl_1:.2%}, expected {pnl_1_expected:.2%}"
+            msg = f"Wrong first PnL. Got {pnl_1}, expected {pnl_1_expected}"
         )
 
-        pnl_final = pnl.sum()
+        pnl_final = tools.Money(pnl.sum())
         pnl_final_expected = tools.Money(799273.54)  # calc Excel
 
         self.assertAlmostEqual(
             pnl_final, pnl_final_expected, delta = tools.Money(0.01),
-            msg = f"Wrong total PnL. Got {pnl_final:.2%}, expected {pnl_final_expected:.2%}"
+            msg = f"Wrong total PnL. Got {pnl_final}, expected {pnl_final_expected}"
         )
     
     def test_calc_pnl_func(self):
@@ -832,18 +832,18 @@ class TestVAR(unittest.TestCase):
             holding_period = 1
         )
 
-        pnl_1 = pnl.iloc[1]
+        pnl_1 = tools.Money(pnl.iloc[1])
         pnl_1_expected = tools.Money(824.96) # calc Excel
 
         self.assertAlmostEqual(
             pnl_1, pnl_1_expected, delta = tools.Money(0.01),
-            msg = f"Wrong first PnL. Got {pnl_1:.2%}, expected {pnl_1_expected:.2%}"
+            msg = f"Wrong first PnL. Got {pnl_1}, expected {pnl_1_expected}"
         )
 
-        pnl_final = pnl.sum()
+        pnl_final = tools.Money(pnl.sum())
         pnl_final_expected = tools.Money(799273.54)  # calc Excel
 
         self.assertAlmostEqual(
             pnl_final, pnl_final_expected, delta = tools.Money(0.01),
-            msg = f"Wrong total PnL. Got {pnl_final:.2%}, expected {pnl_final_expected:.2%}"
+            msg = f"Wrong total PnL. Got {pnl_final}, expected {pnl_final_expected}"
         )

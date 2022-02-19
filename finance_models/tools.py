@@ -15,8 +15,20 @@ DT_FMT = '%d/%m/%Y'
 
 #%%
 # money display
-#locale.
-locale.setlocale(locale.LC_MONETARY, '')
+# choose locale
+locales = locale.locale_alias
+locale_candidates_pt_br = [ k for k in locales.keys() if k.startswith('pt') and 'br' in k ]
+
+if len(locale_candidates_pt_br) > 0:
+    best_locale = locale_candidates_pt_br[0]
+else:
+    locale_candidates_en = [ k for k in locales.keys() if k.startswith('en') ]
+    best_locale = locale_candidates_en[0]
+
+locale.setlocale(
+    category = locale.LC_ALL, 
+    locale = best_locale
+)
 
 money = lambda m: locale.currency(m, grouping = True)
 

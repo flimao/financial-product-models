@@ -1,5 +1,7 @@
 # Financial Product Models
 
+[![CircleCI](https://circleci.com/gh/flimao/financial-product-models/tree/main.svg?style=shield)](https://circleci.com/gh/flimao/financial-product-models/tree/main)
+
 Models for predicting price of several financial products:
 
 * Brazilian sovereign debt

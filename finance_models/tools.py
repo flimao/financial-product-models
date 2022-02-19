@@ -15,7 +15,8 @@ DT_FMT = '%d/%m/%Y'
 
 #%%
 # money display
-locale.setlocale(locale.LC_ALL, 'pt_BR')
+#locale.
+locale.setlocale(locale.LC_MONETARY, '')
 
 money = lambda m: locale.currency(m, grouping = True)
 

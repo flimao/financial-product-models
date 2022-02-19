@@ -3,34 +3,38 @@
 
 #%%
 # imports
-import locale 
+#import locale 
 import datetime as dt
 from typing import List
 import numpy as np
 import pandas as pd
+import babel.numbers
 
 #%%
 # CONSTS
 DT_FMT = '%d/%m/%Y'
+CUR = 'BRL'
 
 #%%
 # money display
 # choose locale
-locales = locale.locale_alias
-locale_candidates_pt_br = [ k for k in locales.keys() if k.startswith('pt') and 'br' in k ]
+# locales = locale.locale_alias
+# locale_candidates_pt_br = [ k for k in locales.keys() if k.startswith('pt') and 'br' in k ]
 
-if len(locale_candidates_pt_br) > 0:
-    best_locale = locale_candidates_pt_br[0]
-else:
-    locale_candidates_en = [ k for k in locales.keys() if k.startswith('en') ]
-    best_locale = locale_candidates_en[0]
+# if len(locale_candidates_pt_br) > 0:
+#     best_locale = locale_candidates_pt_br[0]
+# else:
+#     locale_candidates_en = [ k for k in locales.keys() if k.startswith('en') ]
+#     best_locale = locale_candidates_en[0]
 
-locale.setlocale(
-    category = locale.LC_ALL, 
-    locale = best_locale
-)
+# locale.setlocale(
+#     category = locale.LC_ALL, 
+#     locale = best_locale
+# )
+#
+# money = lambda m: locale.currency(m, grouping = True)
 
-money = lambda m: locale.currency(m, grouping = True)
+money = lambda m: babel.numbers.format_currency(m, CUR)
 
 class Money(float):
     """ class that implements a float whose representation is a string formatted using locale-specific rules """    

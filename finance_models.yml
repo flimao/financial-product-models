@@ -12,4 +12,5 @@ dependencies:
   - seaborn
   - pytest
   - pytest-cov
+  - babel
 prefix: C:\ProgramData\Anaconda3\envs\finance_models

@@ -37,13 +37,13 @@ jobs:
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run:
           name: Install dependencies (conda)
-          command: conda env create -f environment.yml
+          command: conda env create -f finance_models.yml
       - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above
           command: | 
             conda activate finance_models
-            pytest - --cov
+            pytest -v --cov
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows

@@ -5,7 +5,7 @@
 Models for predicting price of several financial products:
 
 * Brazilian sovereign debt
-* Risk Metrics: Value at Risk, Expected Shortfall
+* Portfolio and Risk Metrics: Value at Risk, Expected Shortfall
 
 ... and others to come.
 

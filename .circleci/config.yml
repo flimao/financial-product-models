@@ -14,7 +14,7 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  build: # This is the name of the job, feel free to change it to better match what you're trying to do!
+  build-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -34,17 +34,6 @@ jobs:
       - run:
           name: Install dependencies (conda)
           command: conda env create -f environment.yml
-      - persist_to_workspace:
-        root: .
-        paths:
-          - .
-  test: 
-    docker:
-      - image: continuumio/miniconda3
-    working_directory: ~/repo
-    steps:
-      - attach_workspace
-        at: .
       - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above
@@ -52,45 +41,31 @@ jobs:
             source activate finance_models
             conda activate finance_models
             pytest -v --cov
-      - persist_to_workspace:
-        root: .
-        paths:
-          - .
 
   deploy: 
     docker:
       - image: continuumio/miniconda3
     working_directory: ~/repo
     steps:
-      - attach_workspace
-        at: .
+      - checkout
       - run:
-          name: Deploy
+          name: Checkout main branch
+          command: git checkout main
+      #- run:
+      #    name: Merge from test
           # This assumes pytest is installed via the install-package step above
-          command: |
-            source activate finance_models
-            conda activate finance_models
-            pytest -v --cov
-      - persist_to_workspace:
-        root: .
-        paths:
-          - .
-
+      #    command: echo "DEPLOY NOW"
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
   cicd: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
-      - build
-      - test:
-        - requires:
-          - build
+#      - build-test
       - deploy:
-        - requires:
-          - build
-          - test
-        - filters:
-          - branches:
-            only:
-              - test
+#          requires:
+#            - build-test
+          filters:
+            branches:
+              only:
+                - circleci-editor/726/dev

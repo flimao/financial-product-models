@@ -51,6 +51,16 @@ jobs:
       - run:
           name: Checkout main branch
           command: git checkout main
+      - run:
+          name: Merge squash from test branch
+          command: git merge test --squash
+      - run:
+          name: Commit and push to main
+          command: |
+              git config --global user.email 'Felipe Oliveira'
+              git config --global user.name 'dev@lmnice.me'
+              git commit -a -m "Deploy (CD)"
+              git push
       #- run:
       #    name: Merge from test
           # This assumes pytest is installed via the install-package step above
@@ -61,11 +71,11 @@ workflows:
   cicd: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
-#      - build-test
+      - build-test
       - deploy:
-#          requires:
-#            - build-test
+          requires:
+            - build-test
           filters:
             branches:
               only:
-                - circleci-editor/726/dev
+                - test1

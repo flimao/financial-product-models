@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
-#%%
-# imports
-
 from typing import List
 import datetime as dt
 import numpy as np
 import pandas as pd
 from . import tools
 
-#%%
-# ntnf
 class Prefixado:
     """
     Define um Título Prefixado de Dívida Soberana do Brasil
@@ -360,8 +355,3 @@ class Prefixado:
         
         return r
         
-
-## OBS: se pagamento cair no feriado, pagamento no dia anterior
-# data emissao - emissao do título
-# data de vencimento - 
-# %%

@@ -1,5 +1,5 @@
 import numpy as np
-from .. import br_sovereign_debt_securities as brdebt, tools
+from .. import br_sovereign_debt as brdebt, tools
 import unittest
 
 import warnings
@@ -116,3 +116,60 @@ class TestPrefixado(unittest.TestCase):
             f"Número de eventos de pagamento de uma {ntnf31} errado. Esperava '{n_esperados:n}' eventos, retornou '{n_fluxos:n}' eventos"
         )
 
+class TestTesouroDireto(unittest.TestCase):
+    def test_prazo_anualizado_du(self):
+        titulo = brdebt.TesouroDireto(
+            vencimento = 2031, 
+            taxa_anual = 11.54/100, 
+            dt_compra = '14/02/2022', 
+            convencao = 'DU/252'
+        )
+
+        prazo_anual = titulo.calcula_prazo() * 252
+        prazo_anual_esperado = 2230
+        self.assertEqual(
+            prazo_anual, prazo_anual_esperado, 
+            f"Prazo anualizado (DU/252) de {titulo} errado. Esperava '{prazo_anual_esperado:.3f}' dias, retornou '{prazo_anual}' dias"
+        )
+
+        prazo2 = titulo.calcula_prazo(
+            dt_inicio = '15/02/2022', 
+            dt_fim = '01/01/2031', 
+            feriados = tools.get_holidays_anbima(), 
+            convencao = 'DU/252'
+        ) * 252
+        prazo_esperado2 = 2229.
+        self.assertEqual(
+            prazo2, prazo_esperado2, 
+            f"Prazo anualizado (DU/252) errado. Esperava '{prazo_esperado2:.3f}', retornou '{prazo2}'"
+        )
+    
+    def test_pu(self):
+        titulo = brdebt.TesouroDireto(
+            vencimento = 2026, 
+            taxa_anual = 11.36/100, 
+            dt_compra = '14/02/2022', 
+        )
+
+        pu1 = titulo.calcula_pu(vf = tools.Money(1000))
+        pu1_esperado = tools.Money(658.91)  # checado tesouro direto em 2022-02-12
+        self.assertAlmostEqual(
+            pu1, pu1_esperado, delta = tools.Money(0.01), 
+            msg = f"PU de {titulo} errado. Em {titulo.dt_compra:%d/%m/%Y}, esperava '{pu1_esperado}', retornou '{pu1}'"
+        )
+    
+    def test_taxa_anual(self):
+        titulo = brdebt.TesouroDireto(
+            vencimento = 2026, 
+            taxa_anual = 11.36/100, 
+            dt_compra = '14/02/2022', 
+        )
+        
+        pu = tools.Money(658.91)
+        valor_base = tools.Money(1000)
+        taxa = titulo.calcula_taxa_anual(pu = pu, valor_base = valor_base)
+        taxa_esperada = 0.1136
+        self.assertAlmostEqual(
+            taxa, taxa_esperada, delta = 1e-4, 
+            msg = f"Taxa de {titulo} errado. Com VP = {pu} e VF = {valor_base}, a taxa deveria ser '{taxa_esperada:.2%}' a.a., mas o cálculo deu '{taxa:.2%}' a.a."
+        )

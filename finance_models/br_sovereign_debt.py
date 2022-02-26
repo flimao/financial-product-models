@@ -5,19 +5,17 @@ from typing import List
 import datetime as dt
 import numpy as np
 import pandas as pd
-from . import tools
+from . import tools, fixed_income
+import seriesbr
 
-class Prefixado:
+class TesouroDireto:
     """
-    Define um Título Prefixado de Dívida Soberana do Brasil
+    Define um Título Genérico de Dívida Soberana do Brasil
     """
-
     def __init__(self, 
         vencimento: int or dt.date or dt.datetime,
         taxa_anual: float,
         dt_compra: str or dt.date or dt.datetime or None = None,
-        taxa_cupom: float or bool = True,
-        valor_face: float = 1000.,
         convencao: str = 'DU/252',
     ):
         """
@@ -29,11 +27,6 @@ class Prefixado:
         'taxa_anual': a taxa prefixada (% a.a.) pelo qual o título foi adquirido
         
         'dt_compra': data da compra (liquidacao) do título. Pode ser None, caso não queiramos incluir a data de compra
-        
-        'taxa_cupom': a taxa segundo a qual o título paga cupom. 
-            Caso seja True, 'taxa_cupom' = 10% a.a., se for False, o título não paga cupom
-
-        'valor_face': o valor de face do título no vencimento. Default é 1000.
 
         'convencao': pode ser 'DU/252' (dias uteis) ou 'DC/360' (dias corridos em base 360 dias)
 
@@ -55,27 +48,12 @@ class Prefixado:
         else:
             self.dt_compra = dt_compra
         
-        # taxa do cupom
-        if isinstance(taxa_cupom, bool):
-            if taxa_cupom:
-                self.taxa_cupom = 10/100
-            else:
-                self.taxa_cupom = 0.
-        else:
-            self.taxa_cupom = taxa_cupom
-        
-        # valor de face
-        self.valor_face = valor_face
-
-        # valor do cupom
-        self.cupom = self.valor_face * ((1 + self.taxa_cupom)**0.5 - 1)
-
         # feriados
         self.feriados = tools.get_holidays_anbima()
 
         # convencao de contagem de dias
         self.convencao = convencao
-    
+
     def calcula_prazo(self,
         dt_inicio: str or dt.datetime or dt.date or None = None, 
         dt_fim: str or dt.datetime or dt.date or None = None, 
@@ -109,22 +87,142 @@ class Prefixado:
             convencao = self.convencao
 
         # contagem dos dias é feita em uma função de auxílio
-        dias = tools.get_days(
+        prazo_anualizado = tools.get_annualized_time(
             date_begin = dt_inicio,
             date_end = dt_fim,
             holidays = feriados,
-            closed = 'left',  ## a prática é contar os dias entre a data de inicio (inclusive) e a data de termino (exclusive)
             convention = convencao
         )
 
-        # convertendo para prazo anualizado
-        if convencao == 'DU/252':
-            prazo_anualizado = len(dias) / 252
-        else:
-            prazo_anualizado = len(dias) / 360
-
         return prazo_anualizado
+    
+    def calcula_pu(self,
+        vf: float or None = None, 
+        prazo_anual: float or None = None, 
+        taxa_anual: float or None = None,
+    ):
+        """
+        calcula o PU de um fluxo dado o valor futuro, o prazo anualizado e a taxa % a.a.
 
+        vf: float -> valor de face ou valor futuro. Se None, default para o valor de face padrão (R$ 1000)
+        prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
+        taxa_anual: float -> taxa anualizada % a.a. Se None, default para a taxa anualizada setada na definição da classe
+        """
+
+        # vf
+        if vf is None:
+            vf = self.valor_face
+        
+        # prazo anual
+        if prazo_anual is None:
+            prazo_anual = self.calcula_prazo()
+        
+        # taxa anual
+        if taxa_anual is None:
+            taxa_anual = self.taxa_anual
+
+        pu = fixed_income.calc_pv(fv = vf, time = prazo_anual, rate = taxa_anual)
+
+        return pu
+    
+    def calcula_taxa_anual(self,
+        pu: float,
+        valor_base: float = 100,
+        prazo_anual: float or None = None,
+
+    ):
+        """
+        calcula a taxa anual % a.a. associada a um fluxo dados o PU (valor presente), o prazo anualizado e o valor base (valor futuro)
+
+        valor_base: float -> valor de face ou valor futuro. Se None, default para R$ 100 (base percentual)
+        prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
+        pu: float -> PU correspondente ao prazo anualizado (valor presente)
+        """
+
+        # prazo_anual default
+        if prazo_anual is None:
+            prazo_anual = self.calcula_prazo(
+                dt_inicio = self.dt_compra,
+                dt_fim = self.vencimento
+            )
+
+        taxa_anual = fixed_income.calc_rate(pv = pu, fv = valor_base, time = prazo_anual)
+        
+        return taxa_anual
+    
+    def __str__(self):
+        s = f'Titulo Genérico com vencimento em {self.vencimento:{tools.DT_FMT}} a {self.taxa_anual:.2%} a.a.'
+        if self.dt_compra is not None:
+            s += f' comprado em {self.dt_compra:{tools.DT_FMT}}'
+        
+        return s
+
+    def __repr__(self):
+        r = f'{self.__class__.__name__}('
+        r += f'vencimento = {self.vencimento:{tools.DT_FMT}}, '
+        r += f'taxa_anual = {self.taxa_anual}, '
+        
+        if self.dt_compra is not None:
+            r += f'dt_compra = {self.dt_compra:{tools.DT_FMT}}, '
+               
+        r += f"convencao = '{self.convencao}'"
+        r += ')'
+        
+        return r
+
+class Prefixado(TesouroDireto):
+    """
+    Define um Título Prefixado de Dívida Soberana do Brasil
+    """
+
+    def __init__(self, 
+        vencimento: int or dt.date or dt.datetime,
+        taxa_anual: float,
+        dt_compra: str or dt.date or dt.datetime or None = None,
+        taxa_cupom: float or bool = True,
+        valor_face: float = 1000.,
+        convencao: str = 'DU/252',
+    ):
+        """
+        parâmetros:
+
+        'vencimento': data do vencimento. Caso seja um int, interpretamos como o ano do vencimento,
+            a data do vencimento é 01/01/'vencimento'
+        
+        'taxa_anual': a taxa prefixada (% a.a.) pelo qual o título foi adquirido
+        
+        'dt_compra': data da compra (liquidacao) do título. Pode ser None, caso não queiramos incluir a data de compra
+        
+        'taxa_cupom': a taxa segundo a qual o título paga cupom. 
+            Caso seja True, 'taxa_cupom' = 10% a.a., se for False, o título não paga cupom
+
+        'valor_face': o valor de face do título no vencimento. Default é 1000.
+
+        'convencao': pode ser 'DU/252' (dias uteis) ou 'DC/360' (dias corridos em base 360 dias)
+
+        """
+        super().__init__(
+            vencimento = vencimento,
+            taxa_anual = taxa_anual,
+            dt_compra = dt_compra,
+            convencao = convencao
+        )
+        
+        # taxa do cupom
+        if isinstance(taxa_cupom, bool):
+            if taxa_cupom:
+                self.taxa_cupom = 10/100
+            else:
+                self.taxa_cupom = 0.
+        else:
+            self.taxa_cupom = taxa_cupom
+        
+        # valor de face
+        self.valor_face = valor_face
+
+        # valor do cupom
+        self.cupom = self.valor_face * ((1 + self.taxa_cupom)**0.5 - 1)
+    
     def constroi_fluxo(self,
         dt_fim: str or dt.datetime or dt.date or None = None, 
         frequencia: int = 6, # meses
@@ -172,62 +270,6 @@ class Prefixado:
         lista_datas_fluxos = series_datas_fluxos.tolist()
 
         return lista_datas_fluxos
-
-    def calcula_pu(self,
-        vf: float or None = None, 
-        prazo_anual: float or None = None, 
-        taxa_anual: float or None = None,
-    ):
-        """
-        calcula o PU de um fluxo dado o valor futuro, o prazo anualizado e a taxa % a.a.
-
-        vf: float -> valor de face ou valor futuro. Se None, default para o valor de face padrão (R$ 1000)
-        prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
-        taxa_anual: float -> taxa anualizada % a.a. Se None, default para a taxa anualizada setada na definição da classe
-        """
-
-        # vf
-        if vf is None:
-            vf = self.valor_face
-        
-        # prazo anual
-        if prazo_anual is None:
-            prazo_anual = self.calcula_prazo()
-        
-        # taxa anual
-        if taxa_anual is None:
-            taxa_anual = self.taxa_anual
-
-        pu = vf / (1 + taxa_anual) ** prazo_anual
-
-        return pu
-
-    def calcula_taxa_anual(self,
-        pu: float,
-        valor_base: float = 100,
-        prazo_anual: float or None = None,
-
-    ):
-        """
-        calcula a taxa anual % a.a. associada a um fluxo dados o PU (valor presente), o prazo anualizado e o valor base (valor futuro)
-
-        valor_base: float -> valor de face ou valor futuro. Se None, default para R$ 100 (base percentual)
-        prazo_anual: float -> prazo anualizado (segundo convencao). Se None, default para prazo entre compra e vencimento
-        pu: float -> PU correspondente ao prazo anualizado (valor presente)
-        """
-
-        # prazo_anual default
-        if prazo_anual is None:
-            prazo_anual = self.calcula_prazo(
-                dt_inicio = self.dt_compra,
-                dt_fim = self.vencimento
-            )
-
-        # pu = valor_base * (1 + taxa_anual) ** prazo_anual
-        taxa_anual = np.exp((np.log(valor_base) - np.log(pu)) / prazo_anual) - 1
-        
-        return taxa_anual
-
 
     def calcula_pu_ntnf(self,
         dt_base: str or dt.datetime or dt.date or None = None,
@@ -333,17 +375,17 @@ class Prefixado:
         s += f' a {self.taxa_anual:.2%} a.a.'
 
         if self.dt_compra is not None:
-            s += f" comprado em {self.dt_compra:%d/%m/%Y}"
+            s += f" comprado em {self.dt_compra:{tools.DT_FMT}}"
         
         return s
     
     def __repr__(self):
         r = f'{self.__class__.__name__}('
-        r += f'vencimento = {self.vencimento:%d/%m/%Y}, '
+        r += f'vencimento = {self.vencimento:{tools.DT_FMT}}, '
         r += f'taxa_anual = {self.taxa_anual}, '
         
         if self.dt_compra is not None:
-            r += f'dt_compra = {self.dt_compra:%d/%m/%Y}, '
+            r += f'dt_compra = {self.dt_compra:{tools.DT_FMT}}, '
         
         r += f'taxa_cupom = {self.taxa_cupom}, '
 

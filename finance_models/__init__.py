@@ -1,5 +1,5 @@
 __all__ = [
-    'br_sovereign_debt_securities',
+    'br_sovereign_debt',
     'tools',
     'portfolio',
 ]

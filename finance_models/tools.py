@@ -163,10 +163,77 @@ def get_days(
 
         return days
 
+def get_annualized_time(
+        date_begin: str or dt.datetime or dt.date, 
+        date_end: str or dt.datetime or dt.date,
+        holidays: List or pd.Series or None = None,
+        convention: str = 'DC/360',
+    ):
+        """
+        annualized time (annualized time = 1 -> 1 year time difference between dates) given two dates, holiday list and date calculation convention
 
-#%%
-# tests
-if __name__ == '__main__':
-    holidays = get_holidays_anbima()
-    dus = get_days(date_begin = '01/01/2022', date_end = '01/04/2022', holidays = holidays, closed = 'left')
+        date_begin: date (str no formato 'DD/MM/YYYY' ou objeto date/datetime): first date
+        date_fim: data (str no formato 'DD/MM/YYYY' ou objeto date/datetime): second date
+        holidays: list ou pandas.Series -> list (or series) of holiday dates. Se None, default to no holidays
+        convencao: str -> convention for counting days. Default to "DC/360" (count all dates, annualize by dividing by 360)
+        """
+        # feriados default
+        if holidays is None:
+            holidays = []
+        
+        days = get_days(
+            date_begin = date_begin,
+            date_end = date_end,
+            holidays = holidays,
+            closed = 'left',  ## common practice is to count dates between beginning (inclusive) and ending (exclusive)
+            convention = convention
+        )
 
+        # convertendo para prazo anualizado
+        if convention == 'DU/252':
+            annualized_time = len(days) / 252
+        else:
+            annualized_time = len(days) / 360
+
+        return annualized_time
+
+def get_bcb_ts(
+    codigo_bcb: int, 
+    dt_inicio: dt.date or str, 
+    dt_fim: dt.date or str
+):
+    """extract timeseries from Brazil's Central Bank database between two dates
+
+    Args:
+        codigo_bcb (int): a code unique to the timeseries. Examples below in comments
+        dt_ini (dt.dateorstr): begin date
+        dt_fin (dt.dateorstr): end date
+
+    Returns:
+        pd.Series: desired timeseries
+    """
+    # common codes:
+        # ipca = 433
+        # igp_m = 189
+        # selic = 11 -> Percentual diário
+        # selic meta = 4390 -> Percentual mensal
+        # selic_copom = 432
+        # ima-b = 12466
+        # ima = 12469
+        # ima_s = 12462
+        # ima_c = 12463
+        # cdi = 12 -> Percentual diário
+        # cdi = 4391 -> Percentual mensal
+        # irf_m_menos1 = 17626
+        # irf_m_mais1 = 17627
+        # consumer price index (IPC-Br) = 191
+        # commodity index - Brazil = 27574
+        # Net public debt (% GDP) - Total - Federal Government and Banco Central = 4503
+        # Net general government debt (% GDP) = 4536
+
+    url = 'http://api.bcb.gov.br/dados/serie/bcdata.sgs.{}/dados?formato=json&dataInicial={}&dataFinal={}'.format(codigo_bcb, dt_inicio, dt_fim)
+
+    df = pd.read_json(url)
+    df['data'] = pd.to_datetime(df['data'], dayfirst=True)
+    
+    return df

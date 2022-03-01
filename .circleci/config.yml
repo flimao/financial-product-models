@@ -71,7 +71,11 @@ workflows:
   cicd: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
-      - build-test
+      - build-test:
+          filters:
+            branches:
+              ignore:
+                - /feature//.*/
       - deploy:
           requires:
             - build-test

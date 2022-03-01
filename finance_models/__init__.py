@@ -5,4 +5,4 @@ __all__ = [
 ]
 
 __author__ = 'Felipe Oliveira'
-__version__ = '1.1.0'
+__version__ = '1.2.1'

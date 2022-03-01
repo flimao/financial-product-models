@@ -13,4 +13,5 @@ dependencies:
   - pytest
   - pytest-cov
   - babel
+  - tqdm
 prefix: C:\ProgramData\Anaconda3\envs\finance_models

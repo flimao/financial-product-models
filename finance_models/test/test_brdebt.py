@@ -1,9 +1,12 @@
 import numpy as np
+import pandas as pd
 from .. import br_sovereign_debt as brdebt, tools
 import unittest
 
 import warnings
 warnings.filterwarnings('ignore')
+
+M = tools.Money
 
 class TestPrefixado(unittest.TestCase):
     
@@ -173,3 +176,187 @@ class TestTesouroDireto(unittest.TestCase):
             taxa, taxa_esperada, delta = 1e-4, 
             msg = f"Taxa de {titulo} errado. Com VP = {pu} e VF = {valor_base}, a taxa deveria ser '{taxa_esperada:.2%}' a.a., mas o cálculo deu '{taxa:.2%}' a.a."
         )
+    
+    def test_constroi_fluxo(self):
+
+        titulo = brdebt.TesouroDireto(
+            vencimento = 2026, 
+            taxa_anual = 11.36/100, 
+            dt_compra = '14/02/2022', 
+        )
+
+        f = titulo.constroi_fluxo
+
+        freq = 6
+        lista_fluxo = titulo.constroi_fluxo(frequencia = freq)
+
+        nfluxos = len(lista_fluxo)
+        nfluxos_expected = 8
+
+        self.assertEqual(
+            nfluxos, nfluxos_expected,
+            msg = f'{f.__name__}: número de fluxos para {titulo} errado. Esperava {nfluxos_expected}, deu {nfluxos}.'
+        )
+
+        primeira_data = lista_fluxo[0]
+        primeira_data_expected = pd.Timestamp('2022-07-01')
+
+        self.assertEqual(
+            primeira_data, primeira_data_expected,
+            msg = f'{f.__name__}: primeira data do fluxo de {titulo} errada. Esperava {primeira_data_expected:{tools.DT_FMT}}, deu {primeira_data:{tools.DT_FMT}}'
+        )
+
+        ultima_data = lista_fluxo[-1]
+        ultima_data_expected = pd.Timestamp(titulo.vencimento)
+
+        self.assertEqual(
+            ultima_data, ultima_data_expected,
+            msg = f'{f.__name__}: última data do fluxo de {titulo} errada. Esperava {ultima_data_expected:{tools.DT_FMT}}, deu {ultima_data:{tools.DT_FMT}}'
+        )
+
+        delta_t = lista_fluxo[1] - lista_fluxo[0]
+
+        self.assertTrue(
+            pd.Timedelta('30 days') * 6 <= delta_t <= pd.Timedelta('31 days') * 6,
+            msg = f'{f.__name__}: intervalo entre dois fluxos ({delta_t}) incompatível com {freq} meses.'
+        )
+
+class TestIndexado(unittest.TestCase):
+
+    def calc_delta(self, f_series, delta1 = 1e-4, sqrt = False):
+        F = np.exp(np.log(f_series).sum())
+        if sqrt:
+            sum_delta_over_fi = np.sqrt(((delta1 / f_series)**2).sum())
+        else:
+            sum_delta_over_fi = (delta1 / f_series).sum()
+        
+        deltaF = F * sum_delta_over_fi
+
+        return deltaF
+
+    def setUp(self):
+        self.ntnb = brdebt.Indexado(
+            vencimento = 2032,
+            indice = brdebt.IPCA,
+            taxa_anual = 5.72/100,
+            taxa_cupom = True,
+            dt_compra = '15/02/2022'
+        )
+
+        self.ntnb_short = brdebt.Indexado(
+            vencimento = 2023,
+            indice = brdebt.IPCA,
+            taxa_anual = 0.061,
+            taxa_cupom = True,
+        )
+
+        self.ntnb_long = brdebt.Indexado(
+            vencimento = 2040,
+            indice = brdebt.IPCA,
+            taxa_anual = 5.62/100,
+            taxa_cupom = True,
+            dt_compra = '15/02/2022',
+        )
+
+    def test_conserta_indice_class(self):
+        f = brdebt.Indexado.conserta_indice
+        
+        ipca = self.ntnb.conserta_indice()
+        ipca0_em = ipca.index[0]
+        ipca0 = ipca.iloc[0]
+        ipca0_expected = 1.61
+
+        self.assertAlmostEqual(
+            ipca0, ipca0_expected, places = 1,
+            msg = f"{f.__name__}: no início ({ipca0_em:%d/%m/%Y}) do {self.ntnb}, esperava-se IPCA = {ipca0_expected/100:.2%} a.m., mas retornou {ipca0/100:.2%} a.m."
+        )
+    
+    def test_calcula_vna_class(self):
+        f = self.ntnb.calcula_vna
+
+        vna = M(f())
+        vna_expected = M(3810.86) # verificado na série baixada do site do Tesouro Direto (https://www.tesourotransparente.gov.br/publicacoes/valor-nominal-de-ntn-b/)
+
+        delta = self.calc_delta(f_series = 1 + self.ntnb.indice/100)
+
+        self.assertAlmostEqual(
+            vna, vna_expected, delta = M(delta),
+            msg = f"{f.__name__}: VNA de {self.ntnb} incorreto. Em {self.ntnb.dt_compra:{tools.DT_FMT}}, esperava-se VNA = {vna_expected}, obteve-se {vna}."
+        )
+    
+    def test_calcula_vna_fun_indice_num(self):
+        f = self.ntnb.calcula_vna
+
+        vna = M(f(indice = 433))
+        vna_expected = M(3810.86) # verificado na série baixada do site do Tesouro Direto (https://www.tesourotransparente.gov.br/publicacoes/valor-nominal-de-ntn-b/)
+
+        delta = self.calc_delta(f_series = 1 + self.ntnb.indice/100)
+
+        self.assertAlmostEqual(
+            vna, vna_expected, delta = M(delta),
+            msg = f"{f.__name__}: VNA de {self.ntnb} incorreto. Em {self.ntnb.dt_compra:{tools.DT_FMT}}, esperava-se VNA = {vna_expected}, obteve-se {vna}."
+        )
+    
+    def test_calcula_vna_fun_indice_dt_fim(self):
+        f = self.ntnb.calcula_vna
+        
+        dt_fim = '15/01/2022'
+        vna = M(f(dt_fim = dt_fim))
+        vna_expected = M(3790.39)  # verificado na série baixada do site do Tesouro Direto (https://www.tesourotransparente.gov.br/publicacoes/valor-nominal-de-ntn-b/)
+
+        delta = self.calc_delta(f_series = 1 + self.ntnb.indice[:-1]/100)
+
+        self.assertAlmostEqual(
+            vna, vna_expected, delta = M(delta),
+            msg = f"{f.__name__}: VNA de {self.ntnb} incorreto. Em {dt_fim}, esperava-se VNA = {vna_expected}, obteve-se {vna}."
+        )
+    
+    def test_calcula_cotacao_df(self):
+        f = self.ntnb_short.calcula_cotacao_df
+        dt_base = '15/08/2022'
+
+        cashflow = self.ntnb_short.calcula_cotacao_df(dt_base = dt_base)
+        
+        cotacao = cashflow['cotacao'].sum()
+        cotacao_expected = 1.014665
+
+        self.assertAlmostEqual(
+            cotacao, cotacao_expected, places = 6,
+            msg = f'{f.__name__}: cálculo errado da cotação do título {self.ntnb_short}. Na data base {dt_base}, esperava-se cotação de {cotacao_expected:.3%}, obteve-se {cotacao:.3%}'
+        )
+
+        dt_base = '15/02/2022'
+
+        cashflow = self.ntnb_long.calcula_cotacao_df(dt_base = dt_base)
+
+        cotacao = cashflow['cotacao'].sum()
+        cotacao_expected = 3928.96 / 3810.859521
+
+        delta = self.calc_delta(f_series = 1 + self.ntnb_long.indice/100)
+
+        self.assertAlmostEqual(
+            cotacao, cotacao_expected, delta = delta,
+            msg = f'{f.__name__}: cálculo errado da cotação do título {self.ntnb_long}. Na data base {dt_base}, esperava-se cotação de {cotacao_expected:.3%}, obteve-se {cotacao:.3%}'
+        )
+
+    def test_calcula_pu(self):
+        f = self.ntnb_short.calcula_pu_indexado
+
+        dt_base_venda = '15/02/2022'
+        pu = M(self.ntnb_long.calcula_pu_indexado(
+            dt_base = dt_base_venda,
+            taxa_anual = 5.74/100
+        ))
+        
+        pu_expected = M(3928.96)
+
+        nfluxos = len(self.ntnb_long.constroi_fluxo(dt_base = dt_base_venda))
+
+        delta = self.calc_delta(f_series = 1 + self.ntnb_long.indice/100)
+
+        self.assertAlmostEqual(
+            pu, pu_expected, delta = np.sqrt(nfluxos)*delta,
+            msg = f'{f.__name__}: PU errado do título {self.ntnb_short}. Na data base {dt_base_venda}, esperava-se PU de {pu_expected}, obteve-se {pu}'
+        )
+
+    

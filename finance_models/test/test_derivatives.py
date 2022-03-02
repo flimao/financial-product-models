@@ -567,3 +567,66 @@ class TestDerivatives(unittest.TestCase):
             bs_put, bs_put_expected, delta = 1e-2,
             msg = f'BlackScholes: wrong put price. Expected $ {bs_put_expected:.4f}, got $ {bs_put:.4f}' 
         )
+    
+    def test_BS_errors(self):
+        params = dict(
+            S0 = 10,
+            K = 11,
+            T = 1/12,
+            r = 0.0915,
+            q = 0,
+            vol = volm.Hist(portfolio = self.portfolio).vol,
+        )
+
+        for param in params.keys():
+            if param in ['q']:  # optional parameter
+                continue
+            params_minus1 = { k: v for k, v in params.items() if k != param }
+
+            with self.assertRaises(
+                TypeError,
+                msg = f"BlackScholes: Must raise TypeError exception when missing '{param}' parameter."
+            ):
+                bs = derivatives.BlackScholes(**params_minus1)
+
+    def test_BSP_value(self):
+        bs = derivatives.BlackScholesPortfolio(
+            portfolio = self.portfolio,
+            volmodel = 'hist',
+            base_date = pd.Timestamp('2022-05-11'),
+            K = 245_000, r = 9.15 / 100, T = 1/12,
+        )
+
+        bs_call = bs.call
+        bs_call_expected = 13250.12
+
+        self.assertAlmostEqual(
+            bs_call / 10000, bs_call_expected / 10000, delta = 1e-2,
+            msg = f'BlackScholesPortfolio: wrong call price. Expected $ {bs_call_expected:.4f}, got $ {bs_call:.4f}' 
+        )
+
+        bs_put = bs.put
+        bs_put_expected = 11401.11
+
+        self.assertAlmostEqual(
+            bs_put / 10000, bs_put_expected / 10000, delta = 1e-2,
+            msg = f'BlackScholesPortfolio: wrong put price. Expected $ {bs_put_expected:.4f}, got $ {bs_put:.4f}' 
+        )
+    
+    def test_BSP_errors(self):
+
+        params = dict(
+            portfolio = self.portfolio,
+            base_date = pd.Timestamp('2022-05-11'),
+            K = 245_000, r = 9.15 / 100, T = 1/12,
+        )
+        
+        for param in params.keys():
+            params_minus1 = { k: v for k, v in params.items() if k != param }
+
+            with self.assertRaises(
+                TypeError,
+                msg = f"BlackScholesPortfolio: Must raise TypeError exception when missing '{param}' parameter."
+            ):
+
+                bs = derivatives.BlackScholesPortfolio(volmodel = 'hist', **params_minus1)

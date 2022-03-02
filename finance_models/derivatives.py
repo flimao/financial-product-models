@@ -11,12 +11,12 @@ class BlackScholes:
     """
 
     def __init__(self,
+        S0: float,
         K: float,
         r: float,
         T: float,
-        S0: float = None,
+        vol: float,
         q: float = 0,
-        vol: float or vol.Volatility = None,
         *args, **kwargs
     ):
         """Black-Scholes-Merton european option pricing model
@@ -27,10 +27,8 @@ class BlackScholes:
             r (float): risk-free rate (in % p.p.)
             T (float): expiration (units are the same period as the risk free rate. e.g. if risk-free rate is % p.a., then expiration is in years)
             q (float, optional): rate at which the underlying asset pays out dividends. Defaults to 0.
-            vol (float or vol.Volatility): volatility. Accepts a float or a Volatility object (also same unit as risk-free rate)
+            vol (float or vol.Volatility): volatility. Accepts a float (also same unit as risk-free rate)
         """
-
-        # call portfolio __init__ method. if a portfolio exists, then we can get a few things automagically
 
         self.S0 = S0
         self.K = K
@@ -93,7 +91,10 @@ class BlackScholesPortfolio:  # vol.Volatility already inherits from Portfolio
         self.base_date = self._get_check_base_date(base_date)
 
         # spot price is price at base date
-        S0 = self.vol_model.portfolio_total[self.base_date]
+        try:
+            S0 = self.vol_model.portfolio_total[self.base_date]
+        except AttributeError:  # no portfolio_value, meaning no portfolio built
+            raise TypeError(f"Must input parameters to build portfolio.")
 
         vol_bs = self._get_check_vol(self.vol_model.vol)
 

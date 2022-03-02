@@ -3,10 +3,8 @@
 
 import datetime as dt
 from abc import abstractmethod
-from dataclasses import dataclass
 import numpy as np
-import pandas as pd
-from . import tools, portfolio
+from . import portfolio
 
 class Volatility(portfolio.Portfolio):
     """ Volatility models for a portfolio of securities"""
@@ -20,12 +18,13 @@ class Volatility(portfolio.Portfolio):
         *args, **kwargs
     ):
 
-        if cls.__name__ == 'Volatility': # base class. Let's try to instantiate one of the superclasses directly
-            if model in MODELS:
-                cls = MODELS[model]
-            else:  # failed. Raise Exception
-                classes = [ f"{klass.__name__}()" for klass in MODELS.values() ]
-                raise TypeError(f"Instantiate one of {', '.join(classes)} directly")
+       # if cls.__name__ == 'Volatility': # base class. Let's try to instantiate one of the subclasses directly
+       # Let's try to instantiate one of the subclasses directly
+        if model in MODELS:
+            cls = MODELS[model]
+        else:  # failed. Raise Exception
+            classes = [ f"{klass.__name__}()" for klass in MODELS.values() ]
+            raise TypeError(f"Instantiate one of {', '.join(classes)} directly")
 
         # create self object of class 'cls' (which we tried to define above)
         self = portfolio.Portfolio.__new__(cls)
@@ -38,7 +37,7 @@ class Volatility(portfolio.Portfolio):
         self.annualize = annualize
         self.window = window
 
-        # finally, call the superclass __init__ method (which might have additional arguments for each vol model)
+        # finally, call the subclass __init__ method (which might have additional arguments for each vol model)
         self.__init__(*args, **kwargs)
 
         return self

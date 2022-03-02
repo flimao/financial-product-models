@@ -593,14 +593,14 @@ class TestVolatility(unittest.TestCase):
     def test_vol_pp_full_ewma_nolambd(self):
         model = 'ewma'
 
-        volhist_pp = volm.Volatility(
-            portfolio = self.portfolio,
-            model = model,
-        )
-
         with self.assertRaises(TypeError,
             msg = f"Must raise TypeError exception when using model '{model}' without setting parameter 'lambd'."
         ):
+        
+            volhist_pp = volm.Volatility(
+                portfolio = self.portfolio,
+                model = model,
+            )
             _ = volhist_pp.vol_pp
     
     def test_vol_pp_window_hist_portfolio(self):

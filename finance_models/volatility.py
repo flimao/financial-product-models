@@ -2,6 +2,8 @@
 #-*- coding: utf-8 -*-
 
 import datetime as dt
+from abc import abstractmethod
+from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from . import tools, portfolio
@@ -11,47 +13,122 @@ class Volatility(portfolio.Portfolio):
 
     models = [ 'hist', 'ewma' ]
 
-    def __init__(self,
+    def __new__(cls,     
         model: str = 'ewma',
+        window: int or None = None,
         annualize: float = 252,
-        window: int = None,
-        lambd: int = None,
         *args, **kwargs
     ):
-        """create volatility model
 
-        Args:
-            model (str, optional): model specification. One of a list of model specs. Defaults to 'ewma'.
-            annualize (int, optional): number of periods in one year e.g. 252 if daily periods. Defaults to 252.
-            window (int, optional): size of rolling window for volatility calculations. Defaults to None, which includes the whole timeseries
-            lambd (int, optional): if model == 'ewma', weight given to old vol. (1 - lambd) weight is given to new return
-        """
+        if cls.__name__ == 'Volatility': # base class. Let's try to instantiate one of the superclasses directly
+            if model in MODELS:
+                cls = MODELS[model]
+            else:  # failed. Raise Exception
+                classes = [ f"{klass.__name__}()" for klass in MODELS.values() ]
+                raise TypeError(f"Instantiate one of {', '.join(classes)} directly")
 
-        super().__init__(*args, **kwargs)
+        # create self object of class 'cls' (which we tried to define above)
+        self = portfolio.Portfolio.__new__(cls)
 
-        self.model = self.get_check_model(model)
+        # call Portfolio __init__ method with all the arguments for building the portfolio on which we'll model the volatility
+        super(cls, self).__init__(*args, **kwargs)
+
+        # set some properties
+        self.model = model
         self.annualize = annualize
         self.window = window
-        self.lambd = lambd
 
-    def get_check_model(self, model = 'ewma'):
-        if model is not None and model not in self.models:
-            raise ValueError(f"Invalid model. Must be one of {', '.join(self.models)[:-2]}.")
+        # finally, call the superclass __init__ method (which might have additional arguments for each vol model)
+        self.__init__(*args, **kwargs)
+
+        return self
+
+    @property
+    @abstractmethod
+    def vol_pp(self):
+        raise NotImplementedError("'vol_pp()' method on this volatility model is not implemented.")
+
+    @property
+    def vol(self):
+        return self.vol_pp * np.sqrt(self.annualize)
+    
+    # check attributes for illegal values and requirements for each model type
+    
+    def _get_check_model(self, model = 'ewma'):
+        if model not in self.models:
+            model_list = [ f"'{model}'" for model in self.models ]
+            raise ValueError(f"Invalid model. Must be one of {', '.join(model_list)}.")
         return model
 
-    def __vol_pp_hist(self):
-        logrets = self.logreturns
+    @property
+    def model(self):
+        return self.__model
+
+    @model.setter
+    def model(self, model):
+        self.__model = self._get_check_model(model = model)
         
-        if self.window is not None:
-            return logrets.rolling(
-                window = self.window,
-            ).std()
-        
+    def _get_check_window(self, window, *args, **kwargs):
+        argname = 'window'
+
+        check_val = window is None or int(window) + 0 > 0
+        if not check_val:
+            raise ValueError(f"Argument '{argname}' must be an integer greater than zero.")
+            
+        if window is None:
+            return window    
         else:
-            return logrets.std()
+            return int(window)
+    
+    @property
+    def window(self):
+        return self.__window
+    
+    @window.setter
+    def window(self, window):
+        self.__window = self._get_check_window(window = window, model = self.model)
 
+    def _get_check_annualize(self, annualize, *args, **kwargs):
+        argname = 'annualize'
 
-    def __vol_pp_ewma(self):
+        if annualize is None:
+            raise TypeError(f"Argument '{argname}' must be set for all volatility models.")
+
+        check_val = float(annualize) + 0 > 0
+        if not check_val:
+            raise ValueError(f"Argument '{argname}' must be an float greater than zero.")
+            
+        return float(annualize)
+
+    @property
+    def annualize(self):
+        return self.__annualize
+
+    @annualize.setter
+    def annualize(self, annualize):
+        self.__annualize = self._get_check_annualize(annualize = annualize, model = self.model)
+    
+    def __str__(self):
+        s = f'{__name__}.{self.__class__.__name__}'
+
+        if self.window is not None:
+            s += f', window = {self.window} periods'
+        
+        if not np.isclose(self.annualize, 252):
+            s += f', annualization factor = √{self.annualize}'
+        
+        return s
+
+class EWMA(Volatility):
+
+    def __init__(self, 
+        lambd: float, 
+        *args, **kwargs
+    ):
+        self.lambd = lambd
+    
+    @property
+    def vol_pp(self):
         logrets = self.logreturns
         vol_ewma = logrets.ewm(
             alpha = 1 - self.lambd,
@@ -63,21 +140,55 @@ class Volatility(portfolio.Portfolio):
             return vol_ewma[-1]
         else:
             return vol_ewma
+    
+    def _get_check_lambd(self, lambd, *args, **kwargs):
+        argname = 'lambd'
+        model = self.__class__.__name__.lower()
 
+        # if lambd is None:
+        #     raise TypeError(f"Argument '{argname}' must be set for model '{model}'.")
+
+        check_val = isinstance(lambd, float)
+        if not check_val:
+            raise ValueError(f"Argument '{argname}' must be a float-like object.")
+            
+        return float(lambd)
+
+    @property
+    def lambd(self):
+        return getattr(self, f'_{self.__class__.__name__}__lambd')
+
+    @lambd.setter
+    def lambd(self, lambd):
+        self.__lambd = self._get_check_lambd(lambd = lambd)
+
+    def __str__(self):
+        s = super().__str__()
+
+        s += f', λ = {self.lambd}'
+        
+        return s
+
+class Hist(Volatility):
+    
     @property
     def vol_pp(self):
+        logrets = self.logreturns
         
-        func_vol = [ 
-            v for k, v in self.__class__.__dict__.items()
-            if k.startswith(f'_{self.__class__.__name__}__vol_pp') and # mangling
-               k.endswith(self.model) ] 
-
-        if len(func_vol) == 0:
-            raise ReferenceError(f"No function available to model vol (to fix, define function '__vol_pp_{self.model}').") 
-
+        if self.window is not None:
+            return logrets.rolling(
+                window = self.window,
+            ).std()
+        
         else:
-            return func_vol[0](self) 
+            return logrets.std()
 
-    @property
-    def vol(self):
-        return self.vol_pp * np.sqrt(self.annualize)
+
+MODELS = { 
+    volmodel_name.lower(): volmodel for volmodel_name, volmodel in locals().items() 
+    if (
+        isinstance(volmodel, type) and
+        issubclass(volmodel, Volatility) and 
+        volmodel.__name__ != 'Volatility' 
+    )
+}

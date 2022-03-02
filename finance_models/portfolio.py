@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
+import numpy as np
 import pandas as pd
+from tenacity import retry_if_not_exception_message
 
 class Portfolio:
     """ define Portfolio class. ingest and massage portfolio prices and notionals"""
+    # def __new__(cls, *args, **kwargs):
+    #     portfolio = kwargs.get('portfolio', None)
+
+    #     if portfolio is not None and isinstance(portfolio, Portfolio):
+    #         self = portfolio
+    #     else:
+    #         self = super().__new__(cls)
+        
+    #     return self
+
     def __init__(self, 
         securities_values: pd.DataFrame or pd.Series = None, 
         notionals: pd.DataFrame or pd.Series or None = None,
         na: str or None = 'drop',
+        *args, **kwargs
     ):
         """__init__ function
 
@@ -22,6 +35,16 @@ class Portfolio:
                 If None, securities_values assumed to be the actual values in the portfolio (as opposed to prices)
             dropna (bool): drop the NaN values from the portfolio values or not
         """
+        # if portfolio is passed directly, transfer their properties to this one
+        portfolio = kwargs.get('portfolio', None)
+
+        if portfolio is not None and isinstance(portfolio, Portfolio):
+            # set a list of properties to transfer to self
+            attr_list = [ 'securities_values', 'notionals', 'portfolio_values', 'portfolio_total' ]
+            for attr in attr_list:
+                setattr(self, attr, getattr(portfolio, attr))
+
+            return  # nothing else to do
 
         if securities_values is None:
             # no securities_values provided
@@ -76,3 +99,23 @@ class Portfolio:
         # sum each row (time) of portfolio_values
         self.portfolio_total = self.portfolio_values.sum(axis = 1)
         self.portfolio_total.name = 'portfolio_total' 
+    
+    def get_returns(self, holding_period = 1, log = False):
+        ret = self.portfolio_total / self.portfolio_total.shift(holding_period)
+        ret.name 
+        if log:
+            return np.log(ret)
+        else:
+            return ret - 1
+    
+    @property
+    def returns(self):
+        rets = self.get_returns(holding_period = 1, log = False)
+        rets.name = 'returns'
+        return rets
+
+    @property
+    def logreturns(self):
+        logrets = self.get_returns(holding_period = 1, log = True)
+        logrets.name = 'log_returns'
+        return logrets

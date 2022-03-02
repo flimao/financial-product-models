@@ -75,7 +75,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - /feature//.*/
+                - /feature/.*/
       - deploy:
           requires:
             - build-test

@@ -2,10 +2,20 @@
 #-*- coding: utf-8 -*-
 
 import datetime as dt
+from abc import abstractmethod
 import numpy as np
 from scipy.stats import norm
-from . import tools, volatility as vol
+from .. import tools, volatility as vol
 
+# package info
+__all__ = [
+    'binarytree'
+]
+
+__author__ = 'Felipe Oliveira'
+__version__ = '1.3.0'
+
+# black scholes merton
 class BlackScholes:
     """Black-Scholes-Merton european call pricing model
     """

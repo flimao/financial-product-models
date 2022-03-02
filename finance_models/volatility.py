@@ -18,7 +18,12 @@ class Volatility(portfolio.Portfolio):
         *args, **kwargs
     ):
 
-       # if cls.__name__ == 'Volatility': # base class. Let's try to instantiate one of the subclasses directly
+       # first check if cls is in model dictionary. If it is, set model to that
+        for model_name, klass in MODELS.items():
+            if cls == klass:
+                model = model_name
+                break
+
        # Let's try to instantiate one of the subclasses directly
         if model in MODELS:
             cls = MODELS[model]
@@ -169,6 +174,8 @@ class EWMA(Volatility):
         return s
 
 class Hist(Volatility):
+
+    model = 'hist'
     
     @property
     def vol_pp(self):

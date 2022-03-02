@@ -81,5 +81,3 @@ class Volatility(portfolio.Portfolio):
     @property
     def vol(self):
         return self.vol_pp * np.sqrt(self.annualize)
-    
-

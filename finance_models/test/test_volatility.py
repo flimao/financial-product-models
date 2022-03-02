@@ -656,4 +656,3 @@ class TestVolatility(unittest.TestCase):
             vol_pp, vol_pp_expected, places = 5,
             msg = f"Vol per annum calculation for model '{model}': expected {vol_pp_expected:.3%} p.a., got {vol_pp:.3%} p.a."
         )
-    

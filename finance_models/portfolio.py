@@ -3,20 +3,9 @@
 
 import numpy as np
 import pandas as pd
-from tenacity import retry_if_not_exception_message
 
 class Portfolio:
     """ define Portfolio class. ingest and massage portfolio prices and notionals"""
-    # def __new__(cls, *args, **kwargs):
-    #     portfolio = kwargs.get('portfolio', None)
-
-    #     if portfolio is not None and isinstance(portfolio, Portfolio):
-    #         self = portfolio
-    #     else:
-    #         self = super().__new__(cls)
-        
-    #     return self
-
     def __init__(self, 
         securities_values: pd.DataFrame or pd.Series = None, 
         notionals: pd.DataFrame or pd.Series or None = None,

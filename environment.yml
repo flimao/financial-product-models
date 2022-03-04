@@ -7,9 +7,6 @@ dependencies:
   - python
   - openpyxl
   - xlrd
-  - plotly
-  - matplotlib
-  - seaborn
   - pytest
   - pytest-cov
   - babel

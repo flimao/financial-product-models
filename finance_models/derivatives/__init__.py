@@ -142,3 +142,8 @@ class BlackScholesPortfolio:  # vol.Volatility already inherits from Portfolio
         # vol is not a float, probably a Series. get the series on the base_date
         else:
             return vol[self.base_date]
+
+
+class BinaryTree:
+    """Derivative pricing with Binary Tree model"""
+    pass

@@ -7,19 +7,10 @@ import numpy as np
 from tqdm import tqdm
 from .. import volatility as vol
 
-class Call(ABC):
-    def option_price(self, spot, strike):
-        return max(spot - strike, 0)
-
-
-class Put(ABC):
-    def option_price(self, spot, strike):
-        return max(strike - spot, 0)
-
 
 class BinaryTreePricing(ABC):
     """Binary Tree pricing model for derivatives.
-    Subclasses 'tree' (a binary tree primitive)
+    Abstract class (do not instantiate it directly)
     """
 
     def __init__(self,
@@ -81,72 +72,17 @@ class BinaryTreePricing(ABC):
     def build_asset_node(self, current_node, *args, **kwargs):
         pass
 
+    @abstractmethod
     def build_asset_tree(self):
-        
-        # calculate up and down factors
-        u, d, _ = self.calc_riskfree_proportion()
-
-        # build tree
-        # first node is the spot price
-        #root = bt.Node(self.S0)
-        tree = np.zeros((self.N, self.N))
-
-        # for each level in the tree ...
-        iterator = range(0, self.N - 1)
-        if self.progressbar:
-            iterator = tqdm(iterator, desc = 'Building asset price tree')
-
-        for i in iterator:
-
-            # for each node in the level i+1...
-            for j in range(0, i+1):
-                nd = tree[i:i+2, j:j+2]
-                tree[i:i+2, j:j+2] = self.build_asset_node(current_node = nd, current_step = i, u = u, d = d)
-
-        return tree
+        pass
 
     @abstractmethod
     def build_derivative_node(self, current_node, current_asset_node, *args, **kwargs):
         pass
-
+    
+    @abstractmethod
     def build_derivative_tree(self):
-        # calculate risk-free proportion factor
-        _, _, p = self.calc_riskfree_proportion()
-
-        # build tree
-        # default is price the derivative at the last level then
-        # bring it to today's dollars
-        der_tree = np.zeros_like(self.asset_price_tree)
-        
-        # go one by one
-        iterator = range(self.N - 2, -1, -1)
-
-        if self.progressbar:
-            iterator = tqdm(iterator, desc = 'Build derivative price tree')
-
-        # backwards progression
-        for i in iterator:
-            
-            for j in range(0, i+1):
-                asset_node = self.asset_price_tree[i:i + 2, j: j + 2]
-                der_node = der_tree[i: i + 2, j:j + 2]
-
-                der_tree[i: i + 2, j:j + 2] = self.build_derivative_node(
-                    current_node = der_node, 
-                    current_asset_node = asset_node,
-                    current_step = i,
-                    proportion = p
-                )
-                    
-        return der_tree
-
-    def calc_riskfree_proportion(self):
-        # calculate risk-free proportion factor
-        u = np.exp(self.vol * np.sqrt(self.dT))
-        d = 1 / u
-        p = (np.exp((self.r - self.q) * self.dT) - d)/(u - d)
-
-        return u, d, p
+        pass
 
     def _get_check_vol(self, vol):
         if vol < 0:
@@ -180,7 +116,48 @@ class BinaryTreePricing(ABC):
         return T, dT, int(N)
 
 
-class Stock(BinaryTreePricing, ABC):
+class RandomWalkRisk:
+    """abstract class implementing risk calculations for any asset whose risk is modelled as a random walk"""
+
+    def calc_riskfree_proportion(self):
+        # calculate risk-free proportion factor
+        u = np.exp(self.vol * np.sqrt(self.dT))
+        d = 1 / u
+        p = (np.exp((self.r - self.q) * self.dT) - d)/(u - d)
+
+        return u, d, p
+
+# assets
+class LinearPayoffAsset(ABC):
+    """abstract class implementing any asset with a linear payoff."""
+
+    def build_asset_tree(self):
+        """builds binary tree for any asset with a linear payoff"""    
+        # calculate up and down factors
+        u, d, _ = self.calc_riskfree_proportion()
+
+        # build tree
+        # first node is the spot price
+        #root = bt.Node(self.S0)
+        tree = np.zeros((self.N, self.N))
+
+        # for each level in the tree ...
+        iterator = range(0, self.N - 1)
+        if self.progressbar:
+            iterator = tqdm(iterator, desc = 'Building asset price tree')
+
+        for i in iterator:
+
+            # for each node in the level i+1...
+            for j in range(0, i+1):
+                nd = tree[i:i+2, j:j+2]
+                tree[i:i+2, j:j+2] = self.build_asset_node(current_node = nd, current_step = i, u = u, d = d)
+
+        return tree
+
+
+class StockGeneral(LinearPayoffAsset, ABC):
+    """ abstract class implementing a stock asset, paying out dividends at a rate of q """
     def build_asset_node(self, current_node, current_step, u, d):
         
         # if it's the first node in the tree, S0
@@ -195,13 +172,96 @@ class Stock(BinaryTreePricing, ABC):
         return current_node
 
 
-class Futures(Stock, ABC):
+class FuturesGeneral(StockGeneral, ABC):
+    """abstract class implementing a futures contract asset.
+
+    A futures contract is special because, in theory, one doesn't incur any risk by entering into a futures contract. Therefore, the total riskfree rate
+    is zero. One can think of this as a composition of the riskfree rate and a dividend paying out at a rate which is the same as the riskfree rate.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.q = self.r
 
 
-class EuropeanOption(Stock, ABC):
+class CurrencyGeneral(StockGeneral, ABC):
+    """ abstract class implementing a currency asset. 
+    
+    A currency asset is special because the total risk free rate is a composition of the riskfree rates of the pair ends
+    E.g. if the currency pair is USD x ARS, then the total riskfree rate is rf_USD - rf_ARS
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rf = kwargs.get('rf', None)
+        if self.rf is not None:
+            self.q = self.rf
+
+
+# asset specialization
+class Stock(StockGeneral, RandomWalkRisk, ABC):
+    pass
+
+
+class Futures(FuturesGeneral, RandomWalkRisk, ABC):
+    pass
+
+
+class Currency(CurrencyGeneral, RandomWalkRisk, ABC):
+    pass
+
+
+# derivatives
+class OptionGeneralPricing(ABC):
+    """ abstract class implementing the tree building rule for an option """
+    def build_derivative_tree(self):
+        # calculate risk-free proportion factor
+        _, _, p = self.calc_riskfree_proportion()
+
+        # build tree
+        # default is price the derivative at the last level then
+        # bring it to today's dollars
+        der_tree = np.zeros_like(self.asset_price_tree)
+        
+        # go one by one
+        iterator = range(self.N - 2, -1, -1)
+
+        if self.progressbar:
+            iterator = tqdm(iterator, desc = 'Build derivative price tree')
+
+        # backwards progression
+        for i in iterator:
+            
+            for j in range(0, i+1):
+                asset_node = self.asset_price_tree[i:i + 2, j: j + 2]
+                der_node = der_tree[i: i + 2, j:j + 2]
+
+                der_tree[i: i + 2, j:j + 2] = self.build_derivative_node(
+                    current_node = der_node, 
+                    current_asset_node = asset_node,
+                    current_step = i,
+                    proportion = p
+                )
+                    
+        return der_tree
+
+
+class Option(OptionGeneralPricing, BinaryTreePricing, ABC):
+    pass
+
+
+class Call(ABC):
+    """abstract class implementing the pricing rule for a call option"""
+    def option_price(self, spot, strike):
+        return max(spot - strike, 0)
+
+
+class Put(ABC):
+    """abstract class implementing the pricing rule for a put option"""
+    def option_price(self, spot, strike):
+        return max(strike - spot, 0)
+
+
+class EuropeanOption(Option, ABC):
+    """ abstract class implementing an european option, i.e. one may only exercise it at the time of expiration"""
     def build_derivative_node(self, current_node, current_asset_node, current_step, proportion):
         Stdown, Stup = current_asset_node[1, :]
 
@@ -220,15 +280,8 @@ class EuropeanOption(Stock, ABC):
         return current_node
 
 
-class EuropeanPut(EuropeanOption, Put):
-    pass
-
-
-class EuropeanCall(EuropeanOption, Call):
-    pass
-
-
-class AmericanOption(Stock):
+class AmericanOption(Option, ABC):
+    """ abstract class implementing an american option, i.e. one may exercise it at any time, from the beginning until the expiration"""
     def build_derivative_node(self, current_node, current_asset_node, current_step, proportion):
         Stdown, Stup = current_asset_node[1, :]
 
@@ -256,9 +309,36 @@ class AmericanOption(Stock):
         return current_node
 
 
-class AmericanCall(AmericanOption, Call):
+## from now on, all classes are concrete classe (instantiable classes)
+# stock options
+class EuropeanCallStockOption(Stock, EuropeanOption, Call):
     pass
 
 
-class AmericanPut(AmericanOption, Put):
+class EuropeanPutStockOption(Stock, EuropeanOption, Put):
+    pass
+
+
+class AmericanCallStockOption(Stock, AmericanOption, Call):
+    pass
+
+
+class AmericanPutStockOption(Stock, AmericanOption, Put):
+    pass
+
+
+# currency options
+class EuropeanCallCurrencyOption(Currency, EuropeanOption, Call):
+    pass
+
+
+class EuropeanPutCurrencyOption(Currency, EuropeanOption, Put):
+    pass
+
+
+class AmericanCallCurrencyOption(Currency, AmericanOption, Call):
+    pass
+
+
+class AmericanPutCurrencyOption(Currency, AmericanOption, Put):
     pass

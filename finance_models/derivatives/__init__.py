@@ -8,11 +8,11 @@ from .. import tools, volatility as vol
 
 # package info
 __all__ = [
-    'binarytree'
+    'binomialtree'
 ]
 
 __author__ = 'Felipe Oliveira'
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 
 # black scholes merton
 class BlackScholes:

@@ -6,6 +6,10 @@ Models for predicting price of several financial products:
 
 * Brazilian sovereign debt
 * Portfolio and Risk Metrics: Value at Risk, Expected Shortfall
+* Volatility Models: historic volatility and EWMA averaged volatility
+* Derivatives pricing models
+  * Black Scholes model
+  * Binomial Trees
 
 ... and others to come.
 

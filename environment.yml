@@ -4,13 +4,12 @@ channels:
 dependencies:
   - pandas
   - numpy
+  - scipy
   - python
   - openpyxl
   - xlrd
-  - plotly
-  - matplotlib
-  - seaborn
   - pytest
   - pytest-cov
   - babel
+  - tqdm
 prefix: C:\ProgramData\Anaconda3\envs\finance_models

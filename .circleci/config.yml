@@ -14,7 +14,7 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
+  build-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -31,10 +31,6 @@ jobs:
     # CircleCI will report the results back to your VCS provider.
     steps:
       - checkout
-      # - python/install-packages:
-          # pkg-manager: conda
-          # app-dir: ~/project/package-directory/  # If you're requirements.txt isn't in the root directory.
-          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run:
           name: Install dependencies (conda)
           command: conda env create -f environment.yml
@@ -46,10 +42,44 @@ jobs:
             conda activate finance_models
             pytest -v --cov
 
+  deploy: 
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Checkout main branch
+          command: git checkout main
+      - run:
+          name: Merge squash from test branch
+          command: git merge test --squash
+      - run:
+          name: Commit and push to main
+          command: |
+              git config --global user.email 'Felipe Oliveira'
+              git config --global user.name 'dev@lmnice.me'
+              git commit -a -m "Deploy (CD)"
+              git push
+      #- run:
+      #    name: Merge from test
+          # This assumes pytest is installed via the install-package step above
+      #    command: echo "DEPLOY NOW"
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
-  ci: # This is the name of the workflow, feel free to change it to better match your workflow.
+  cicd: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
-      - build-and-test
+      - build-test:
+          filters:
+            branches:
+              ignore:
+                - /.*feature/.*/
+      - deploy:
+          requires:
+            - build-test
+          filters:
+            branches:
+              only:
+                - test

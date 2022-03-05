@@ -2,10 +2,10 @@
 #-*- coding: utf-8 -*-
 
 import datetime as dt
-from .. import derivatives
 import numpy as np
 import pandas as pd
-from .. import portfolio, tools, volatility as volm
+from .. import portfolio, tools, volatility as volm, derivatives
+from ..derivatives import binomialtree as bt
 import unittest
 
 import warnings

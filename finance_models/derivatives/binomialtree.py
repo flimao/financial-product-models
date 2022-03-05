@@ -5,20 +5,16 @@ import datetime as dt
 from abc import abstractmethod, ABC
 import numpy as np
 from tqdm import tqdm
-from .. import volatility as vol
+from .. import volatility as volm, portfolio, tools
 
 
-class BinaryTreePricing(ABC):
+class BinomialTreePricing(ABC):
     """Binary Tree pricing model for derivatives.
     Abstract class (do not instantiate it directly)
     """
 
-    def __init__(self,
-        S0: float,
-        K: float,
-        r: float,
-        vol: float,
-        q: float = 0,
+    def __new__(cls,
+        
         T: float = None,
         dT: float = None,
         N: int = None,
@@ -28,26 +24,19 @@ class BinaryTreePricing(ABC):
         """Derivatives pricing model based on Binary Trees
 
         Args:
-            S0 (float): underlying asset spot price at t0
-            K (float): strike (price at which payoff curve changes behavior)
-            r (float): risk-free rate (in % p.p.)
-            q (float, optional): rate at which the underlying asset pays out dividends. Defaults to 0.
             T (float): expiration (units are the same period as the risk free rate. e.g. if risk-free rate is % p.a., then expiration is in years)
             dT (float): time step in the calculation
             N (float): number of instants in time in the binary tree
-            vol (float): volatility. Accepts a float (also same unit as risk-free rate)
             progressbar (bool): whether tho show a progress bar in building the trees or not. Defaults to not (False)
         """
-    
-        self.S0 = S0
-        self.K = K
-        self.r = r
-        self.q = q
+
+        self = super().__new__(cls)
+
         self.T, self.dT, self.N = self._get_check_steps(T = T, dT = dT, N = N)
 
-        self.vol = self._get_check_vol(vol)
-
         self.progressbar = progressbar
+
+        return self
 
     @property
     def price(self):
@@ -83,12 +72,6 @@ class BinaryTreePricing(ABC):
     @abstractmethod
     def build_derivative_tree(self):
         pass
-
-    def _get_check_vol(self, vol):
-        if vol < 0:
-            raise ValueError(f"Volatility must be non-negative.")
-        
-        return vol
     
     def _get_check_steps(self, T, dT, N):
         
@@ -209,9 +192,35 @@ class Currency(CurrencyGeneral, RandomWalkRisk, ABC):
     pass
 
 
-# derivatives
 class OptionGeneralPricing(ABC):
+# derivatives
     """ abstract class implementing the tree building rule for an option """
+
+    def __init__(self,
+        K: float,
+        r: float,
+        S0: float = None,
+        vol: float = None,
+        q: float = 0,
+        *args, **kwargs
+    ):
+        """Derivatives pricing model based on Binary Trees
+
+        Args:
+            S0 (float): underlying asset spot price at t0
+            K (float): strike (price at which payoff curve changes behavior)
+            r (float): risk-free rate (in % p.p.)
+            q (float, optional): rate at which the underlying asset pays out dividends. Defaults to 0.
+            vol (float): volatility. Accepts a float (also same unit as risk-free rate) or a volatility model
+        """
+
+        self.K = K
+        self.r = r
+        self.q = q
+
+        self.vol = self._get_check_vol(vol, *args, **kwargs)
+        self.S0 = self._get_check_spot(S0, *args, **kwargs)
+
     def build_derivative_tree(self):
         # calculate risk-free proportion factor
         _, _, p = self.calc_riskfree_proportion()
@@ -242,9 +251,51 @@ class OptionGeneralPricing(ABC):
                 )
                     
         return der_tree
+    
+    def _get_check_vol(self, vol, *args, **kwargs):
 
+        if vol is not None:
+            if vol < 0:
+                raise ValueError(f"Volatility must be non-negative.")
+        
+        else: # vol is None. Meaning parameters were passed to create a vol model directly
+            if 'volmodel' in kwargs:
+                kwargs['model'] = kwargs['volmodel']
+            self.volmodel = volm.Volatility(*args, **kwargs)
+            vol = self.volmodel.vol
 
-class Option(OptionGeneralPricing, BinaryTreePricing, ABC):
+        return vol
+    
+    def _get_check_spot(self, S0, *args, **kwargs):
+        if S0 is not None:  # S0 is float-like7
+            return S0
+        
+        else: # S0 is None: Meaning inputs for building portfolio must have been passed
+            base_date_raw = kwargs.get('base_date', None)
+            base_date = self._get_check_date(base_date_raw)
+
+            if getattr(self, 'volmodel', None) is not None:  # a volatility model exists. Let's use the portfolio from it
+                pf = self.volmodel.portfolio_total
+            
+            else:
+                self.portfolio = portfolio.Portfolio(*args, **kwargs)
+                pf = self.portfolio.portfolio_total
+
+            if base_date is None:  # if base_date doesn't exist, get last entry from portfolio total
+                return pf.iloc[-1]
+            else:
+                return pf[base_date]
+
+    def _get_check_date(self, date_raw):
+        date = date_raw
+        if isinstance(date_raw, str):
+            date = tools.str2dt(date_raw)
+        
+        return date
+
+   
+class Option(OptionGeneralPricing, BinomialTreePricing, ABC):
+    """ abstract class implementing an option priced via binary trees """
     pass
 
 

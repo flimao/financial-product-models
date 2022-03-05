@@ -99,7 +99,7 @@ class BinomialTreePricing(ABC):
         return T, dT, int(N)
 
 
-class RandomWalkRisk:
+class RandomWalkRisk(ABC):
     """abstract class implementing risk calculations for any asset whose risk is modelled as a random walk"""
 
     def calc_riskfree_proportion(self):
@@ -218,9 +218,12 @@ class OptionGeneralPricing(ABC):
         self.r = r
         self.q = q
 
-        self.vol = self._get_check_vol(vol, *args, **kwargs)
+        # check whether there are arguments for building a portfolio
         self.S0 = self._get_check_spot(S0, *args, **kwargs)
 
+        # check whether there are arguments for builing a volatility model
+        self.vol = self._get_check_vol(vol, *args, **kwargs)
+ 
     def build_derivative_tree(self):
         # calculate risk-free proportion factor
         _, _, p = self.calc_riskfree_proportion()
@@ -252,6 +255,22 @@ class OptionGeneralPricing(ABC):
                     
         return der_tree
     
+    def _get_check_spot(self, S0, *args, **kwargs):
+        if S0 is not None:  # S0 is float-like
+            return S0
+        
+        else: # S0 is None: Meaning inputs for building portfolio must have been passed
+            base_date_raw = kwargs.get('base_date', None)
+            base_date = self._get_check_date(base_date_raw)
+
+            self.portfolio = portfolio.Portfolio(*args, **kwargs)
+            pf = self.portfolio.portfolio_total
+
+            if base_date is None:  # if base_date doesn't exist, get last entry from portfolio total
+                return pf.iloc[-1]
+            else:
+                return pf[base_date]
+            
     def _get_check_vol(self, vol, *args, **kwargs):
 
         if vol is not None:
@@ -266,26 +285,6 @@ class OptionGeneralPricing(ABC):
 
         return vol
     
-    def _get_check_spot(self, S0, *args, **kwargs):
-        if S0 is not None:  # S0 is float-like7
-            return S0
-        
-        else: # S0 is None: Meaning inputs for building portfolio must have been passed
-            base_date_raw = kwargs.get('base_date', None)
-            base_date = self._get_check_date(base_date_raw)
-
-            if getattr(self, 'volmodel', None) is not None:  # a volatility model exists. Let's use the portfolio from it
-                pf = self.volmodel.portfolio_total
-            
-            else:
-                self.portfolio = portfolio.Portfolio(*args, **kwargs)
-                pf = self.portfolio.portfolio_total
-
-            if base_date is None:  # if base_date doesn't exist, get last entry from portfolio total
-                return pf.iloc[-1]
-            else:
-                return pf[base_date]
-
     def _get_check_date(self, date_raw):
         date = date_raw
         if isinstance(date_raw, str):
@@ -296,8 +295,18 @@ class OptionGeneralPricing(ABC):
    
 class Option(OptionGeneralPricing, BinomialTreePricing, ABC):
     """ abstract class implementing an option priced via binary trees """
-    pass
 
+    def __str__(self):
+        s = f', with spot price $ {self.S0:.3f}, and strike $ {self.K:.3f}'
+        s += f' (expiration = {self.T:.2f} years'
+        s += f', risk-free rate = {self.r:.3%} p.a.'
+        
+        if self.q > 0:
+            s += f', dividend yield = {self.q:.3%} p.a.'
+
+        s += f', Binary Tree with {self.N} steps)'
+        
+        return s
 
 class Call(ABC):
     """abstract class implementing the pricing rule for a call option"""
@@ -329,7 +338,9 @@ class EuropeanOption(Option, ABC):
         )
     
         return current_node
-
+    
+    def __str__(self):
+        return ' (european style)' + super().__str__()
 
 class AmericanOption(Option, ABC):
     """ abstract class implementing an american option, i.e. one may exercise it at any time, from the beginning until the expiration"""
@@ -359,37 +370,73 @@ class AmericanOption(Option, ABC):
     
         return current_node
 
+    def __str__(self):
+        return ' (american style)' + super().__str__()
+
 
 ## from now on, all classes are concrete classe (instantiable classes)
 # stock options
 class EuropeanCallStockOption(Stock, EuropeanOption, Call):
-    pass
-
+    def __str__(self):
+        s = f'Call Stock Option' + super().__str__()
+        return s
 
 class EuropeanPutStockOption(Stock, EuropeanOption, Put):
-    pass
-
+    def __str__(self):
+        s = f'Put Stock Option' + super().__str__()
+        return s
 
 class AmericanCallStockOption(Stock, AmericanOption, Call):
-    pass
+    def __str__(self):
+        s = f'Call Stock Option' + super().__str__()
+        return s
 
 
 class AmericanPutStockOption(Stock, AmericanOption, Put):
-    pass
+    def __str__(self):
+        s = f'Put Stock Option' + super().__str__()
+        return s
 
 
 # currency options
 class EuropeanCallCurrencyOption(Currency, EuropeanOption, Call):
-    pass
+    def __str__(self):
+        s = f'Call Currency Option' + super().__str__()
+        return s
 
 
 class EuropeanPutCurrencyOption(Currency, EuropeanOption, Put):
-    pass
+    def __str__(self):
+        s = f'Put Currency Option' + super().__str__()
+        return s
 
 
 class AmericanCallCurrencyOption(Currency, AmericanOption, Call):
-    pass
+    def __str__(self):
+        s = f'Call Currency Option' + super().__str__()
+        return s
 
 
 class AmericanPutCurrencyOption(Currency, AmericanOption, Put):
-    pass
+    def __str__(self):
+        s = f'Call Currency Option' + super().__str__()
+        return s
+
+
+BUILDINGBLOCKS = { 
+    dermodel for dermodel in locals().values() 
+    if (
+        isinstance(dermodel, type) and                      # object is a class
+        ABC in getattr(dermodel, '__bases__', set())        # class does not inherit directly from ABC
+   )
+}
+
+MODELS = { 
+    dermodel for dermodel in locals().values() 
+    if (
+        isinstance(dermodel, type) and                         # object is a class
+        not getattr(dermodel, '__abstractmethods__', [1]) and  # set of abstract methods is empty
+        ABC not in getattr(dermodel, '__bases__', set()) and   # class does not inherit directly from ABC
+        dermodel != ABC                                        # class isn't ABC
+   )
+}

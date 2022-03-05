@@ -2,7 +2,6 @@
 #-*- coding: utf-8 -*-
 
 import datetime as dt
-from abc import abstractmethod
 import numpy as np
 from scipy.stats import norm
 from .. import tools, volatility as vol

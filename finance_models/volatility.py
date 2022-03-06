@@ -15,10 +15,16 @@ class Volatility(portfolio.Portfolio):
         model: str = 'ewma',
         window: int or None = None,
         annualize: float = 252,
+        whole_portfolio: bool = True,
+        holding_period: int = 1,
         *args, **kwargs
     ):
 
-       # first check if cls is in model dictionary. If it is, set model to that
+        # if there's a volmodel keyword, replace model with that
+        if 'volmodel' in kwargs:
+            model = kwargs['volmodel']
+
+        # first check if cls is in model dictionary. If it is, set model to that
         for model_name, klass in MODELS.items():
             if cls == klass:
                 model = model_name
@@ -41,6 +47,14 @@ class Volatility(portfolio.Portfolio):
         self.model = model
         self.annualize = annualize
         self.window = window
+        self.whole_portfolio = whole_portfolio
+        self.holding_period = holding_period
+
+        self._logreturns = self.get_returns(
+            holding_period = self.holding_period,
+            log = True,
+            individual = self.whole_portfolio,
+        )
 
         # finally, call the subclass __init__ method (which might have additional arguments for each vol model)
         self.__init__(*args, **kwargs)
@@ -133,7 +147,7 @@ class EWMA(Volatility):
     
     @property
     def vol_pp(self):
-        logrets = self.logreturns
+        logrets = self._logreturns
         vol_ewma = logrets.ewm(
             alpha = 1 - self.lambd,
             adjust = False,
@@ -179,7 +193,7 @@ class Hist(Volatility):
     
     @property
     def vol_pp(self):
-        logrets = self.logreturns
+        logrets = self._logreturns
         
         if self.window is not None:
             return logrets.rolling(

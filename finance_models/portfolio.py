@@ -3,6 +3,7 @@
 
 import numpy as np
 import pandas as pd
+from . import volatility as volm
 
 class Portfolio:
     """ define Portfolio class. ingest and massage portfolio prices and notionals"""
@@ -89,8 +90,13 @@ class Portfolio:
         self.portfolio_total = self.portfolio_values.sum(axis = 1)
         self.portfolio_total.name = 'portfolio_total' 
     
-    def get_returns(self, holding_period = 1, log = False):
-        ret = self.portfolio_total / self.portfolio_total.shift(holding_period)
+    def get_returns(self, holding_period = 1, log = False, individual = False):
+        if individual:
+            prices = self.portfolio_total
+        else:
+            prices = self.securities_prices
+
+        ret = prices / prices.shift(holding_period)
         ret.name 
         if log:
             return np.log(ret)
@@ -108,3 +114,65 @@ class Portfolio:
         logrets = self.get_returns(holding_period = 1, log = True)
         logrets.name = 'log_returns'
         return logrets
+
+
+class Optimization(volm.Volatility):
+    """ implements optimization from an efficient frontier standpoint """
+    
+    def __init__(self, 
+        nsims: int = 10_000, 
+        *args, 
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.nsims = nsims
+
+        self.individual_logreturns = self.get_returns(holding_period = self.holding_period, log = True, individual = True)
+        self.logreturns_cov_matrix = self.individual_logreturns.cov()
+        self.logreturns_means = self.individual_logreturns.mean()
+        self.logreturns_risks = self.vol_pp
+
+        if self.nsims > 0:
+            self._risk_return, self._Ws = self.simulate_weights()
+
+    def simulate_weights(self):
+        secs = self.securities_values.columns
+        n_secs = len(secs)
+
+        pesos = np.random.dirichlet(np.ones(n_secs), size = self.nsims)
+
+        Ws = pd.DataFrame(pesos,
+            columns = secs
+        )
+
+        muP = Ws @ self.logreturns_means
+        muP.nome = 'return'
+
+        riskP = pd.Series(
+            np.sqrt((Ws @ self.logreturns_cov_matrix @ Ws.transpose()).values.diagonal()),
+            index = Ws.index
+        )
+
+        riskP.nome = 'risk'
+
+        risk_return = pd.concat([muP, riskP], axis = 1)
+
+        return risk_return, Ws
+    
+    def maximize_returns(self, max_risk):
+        idxoptimum = self._risk_return.loc[self._risk_return['risk'] <= max_risk, 'return'].argmax()
+        max_ret = self._risk_return.loc[idxoptimum, 'return']
+        w = self._Ws.loc[idxoptimum]
+        
+        return w, max_ret
+
+    def minimize_risk(self, min_return):
+        idxoptimum = self._risk_return.loc[self._risk_return['return'] >= min_return, 'risk'].argin()
+        min_risk = self._risk_return.loc[idxoptimum, 'risk']
+        w = self._Ws.loc[idxoptimum]
+        
+        return w, min_risk
+
+
+

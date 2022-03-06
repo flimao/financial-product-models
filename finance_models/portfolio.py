@@ -3,7 +3,7 @@
 
 import numpy as np
 import pandas as pd
-from . import volatility as volm
+from matplotlib import pyplot as plt
 
 class Portfolio:
     """ define Portfolio class. ingest and massage portfolio prices and notionals"""
@@ -11,6 +11,8 @@ class Portfolio:
         securities_values: pd.DataFrame or pd.Series = None, 
         notionals: pd.DataFrame or pd.Series or None = None,
         na: str or None = 'drop',
+        individual: bool = False,
+        holding_period: int = 1,
         *args, **kwargs
     ):
         """__init__ function
@@ -23,7 +25,7 @@ class Portfolio:
                 If Series, quantities for each security are on each row and assumed to be constant over time
                 If int or float, there is only one security whose notional is fixed in time
                 If None, securities_values assumed to be the actual values in the portfolio (as opposed to prices)
-            dropna (bool): drop the NaN values from the portfolio values or not
+            na (bool): drop the NaN values from the portfolio values or not
         """
         # if portfolio is passed directly, transfer their properties to this one
         portfolio = kwargs.get('portfolio', None)
@@ -88,16 +90,22 @@ class Portfolio:
         
         # sum each row (time) of portfolio_values
         self.portfolio_total = self.portfolio_values.sum(axis = 1)
-        self.portfolio_total.name = 'portfolio_total' 
+        self.portfolio_total.name = 'portfolio_total'
+
+        # holding period
+        self.holding_period = holding_period
+
+        # whether we get returns on the consolidated portfolio or for each indvidual asset
+        self.individual = individual
     
     def get_returns(self, holding_period = 1, log = False, individual = False):
-        if individual:
+        if not individual:
             prices = self.portfolio_total
         else:
-            prices = self.securities_prices
+            prices = self.securities_values
 
         ret = prices / prices.shift(holding_period)
-        ret.name 
+
         if log:
             return np.log(ret)
         else:
@@ -105,39 +113,53 @@ class Portfolio:
     
     @property
     def returns(self):
-        rets = self.get_returns(holding_period = 1, log = False)
+        rets = self.get_returns(holding_period = 1, log = False, individual = self.individual)
         rets.name = 'returns'
         return rets
 
     @property
     def logreturns(self):
-        logrets = self.get_returns(holding_period = 1, log = True)
+        logrets = self.get_returns(holding_period = 1, log = True, individual = self.individual)
         logrets.name = 'log_returns'
         return logrets
 
 
-class Optimization(volm.Volatility):
+# why is the import statement here, rather than at the top?
+# the volatility module imports this module to get a hold of the Portfolio class
+# if this import statement were at the top, it would cause a circular import issue.
+# we needed to define the Portfolio class before importing the Volatility class
+from .volatility import Volatility
+
+
+class Optimization:
     """ implements optimization from an efficient frontier standpoint """
     
     def __init__(self, 
-        nsims: int = 10_000, 
+        nsims: int = 10_000,
         *args, 
         **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        kwargs['individual'] = True
+        self.volmodel = Volatility(*args, **kwargs)
 
         self.nsims = nsims
 
-        self.individual_logreturns = self.get_returns(holding_period = self.holding_period, log = True, individual = True)
-        self.logreturns_cov_matrix = self.individual_logreturns.cov()
-        self.logreturns_means = self.individual_logreturns.mean()
-        self.logreturns_risks = self.vol_pp
+        self.individual_logreturns = self.volmodel.logreturns
+        self._cov_matrix = self.individual_logreturns.cov()
+        self._means = self.individual_logreturns.mean()
+
+        vol = self.volmodel.vol_pp
+        if isinstance(vol, pd.Series):
+            self._risks = vol
+        
+        else:
+            self._risks = vol.iloc[-1]
 
         if self.nsims > 0:
             self._risk_return, self._Ws = self.simulate_weights()
 
     def simulate_weights(self):
-        secs = self.securities_values.columns
+        secs = self.volmodel.securities_values.columns
         n_secs = len(secs)
 
         pesos = np.random.dirichlet(np.ones(n_secs), size = self.nsims)
@@ -146,17 +168,15 @@ class Optimization(volm.Volatility):
             columns = secs
         )
 
-        muP = Ws @ self.logreturns_means
-        muP.nome = 'return'
+        muP = Ws @ self._means
 
         riskP = pd.Series(
-            np.sqrt((Ws @ self.logreturns_cov_matrix @ Ws.transpose()).values.diagonal()),
+            np.sqrt((Ws @ self._cov_matrix @ Ws.transpose()).values.diagonal()),
             index = Ws.index
         )
 
-        riskP.nome = 'risk'
-
         risk_return = pd.concat([muP, riskP], axis = 1)
+        risk_return.columns = ['return', 'risk']
 
         return risk_return, Ws
     
@@ -173,6 +193,30 @@ class Optimization(volm.Volatility):
         w = self._Ws.loc[idxoptimum]
         
         return w, min_risk
+    
+    def plot_risk_return(self, fmt = '.2%'):
+        fig, ax = plt.subplots()
+        ax.plot(
+            self._risk_return['risk'], self._risk_return['return'], 
+            'o', color = 'blue', alpha = 0.2, label = 'Simulated portfolios'
+        )
+        ax.plot(
+            self._risks, self._means, 
+            'o', color = 'orange', label = 'Original securities'
+        )
 
+        for ativo, s, m in zip(
+            self.volmodel.securities_values.columns, 
+            self._risks,
+            self._means, 
+        ):
+            ax.annotate(ativo, (s, m))
 
+        ax.set_xlabel(r'Risk/volatility (% p.p.)')
+        ax.xaxis.set_major_formatter(lambda x, pos: f'{x:{fmt}}')
+        ax.set_ylabel(r'Returns (% p.p.)')
+        ax.yaxis.set_major_formatter(lambda y, pos: f'{y:{fmt}}')
+        ax.set_title(r'Risk vs Return')
+        plt.legend()
 
+        return fig

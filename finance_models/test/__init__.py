@@ -1,4 +1,3 @@
-__all__ = [ 'test' ]
+from .. import __version__,  __author__
 
-__author__ = 'Felipe Oliveira'
-__version__ = '1.4.0'
+__all__ = [ 'test' ]

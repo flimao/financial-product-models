@@ -5,14 +5,12 @@ import datetime as dt
 import numpy as np
 from scipy.stats import norm
 from .. import tools, volatility as vol
+from .. import __version__, __author__
 
 # package info
 __all__ = [
     'binomialtree'
 ]
-
-__author__ = 'Felipe Oliveira'
-__version__ = '1.4.0'
 
 # black scholes merton
 class BlackScholes:

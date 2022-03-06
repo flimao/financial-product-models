@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = 'finance_models',
-    version = '1.4.0',    
+     version = '1.5.0',    
 
     description = 'Models for predicting prices of several financial products',
     url = 'https://github.com/flimao/financial-product-models',
@@ -10,7 +10,7 @@ setup(
     author_email = 'financemodels@dev.lmnice.me',
     long_description = open('README.md').read(),
     license = 'LICENSE',
-    packages = ['finance_models', 'finance_models.test', 'finance.models.derivatives'],
+    packages = ['finance_models', 'finance_models.test', 'finance_models.derivatives'],
     install_requires = [
         'numpy', 'scipy', 'pandas', 'babel'
     ],

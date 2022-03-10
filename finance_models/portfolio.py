@@ -32,11 +32,24 @@ class Portfolio:
 
         if portfolio is not None and isinstance(portfolio, Portfolio):
             # set a list of properties to transfer to self
-            attr_list = [ 'securities_values', 'notionals', 'portfolio_values', 'portfolio_total' ]
+            attr_list = [ 
+                'securities_values', 
+                'notionals', 
+                'portfolio_values', 
+                'portfolio_total',
+                'holding_period',
+                'individual',
+            ]
             for attr in attr_list:
                 setattr(self, attr, getattr(portfolio, attr))
 
             return  # nothing else to do
+        
+        # holding period
+        self.holding_period = holding_period
+
+        # whether we get returns on the consolidated portfolio or for each indvidual asset
+        self.individual = individual
 
         if securities_values is None:
             # no securities_values provided
@@ -92,11 +105,7 @@ class Portfolio:
         self.portfolio_total = self.portfolio_values.sum(axis = 1)
         self.portfolio_total.name = 'portfolio_total'
 
-        # holding period
-        self.holding_period = holding_period
 
-        # whether we get returns on the consolidated portfolio or for each indvidual asset
-        self.individual = individual
     
     def get_returns(self, holding_period = 1, log = False, individual = False):
         if not individual:
@@ -140,11 +149,17 @@ class Optimization:
         **kwargs
     ):
         kwargs['individual'] = True
+        
+        # TODO: implement diferent volatility models for optimization
+        kwargs['volmodel'] = 'hist'
+        kwargs['window'] = None
+        
         self.volmodel = Volatility(*args, **kwargs)
 
         self.nsims = nsims
 
         self.individual_logreturns = self.volmodel.logreturns
+        print(self.individual_logreturns)
         self._cov_matrix = self.individual_logreturns.cov()
         self._means = self.individual_logreturns.mean()
 
@@ -180,31 +195,100 @@ class Optimization:
 
         return risk_return, Ws
     
-    def maximize_returns(self, max_risk):
-        idxoptimum = self._risk_return.loc[self._risk_return['risk'] <= max_risk, 'return'].argmax()
-        max_ret = self._risk_return.loc[idxoptimum, 'return']
-        w = self._Ws.loc[idxoptimum]
-        
-        return w, max_ret
+    def _return_results(self, result, weights, param, return_weights, return_param):
+        ret = result
 
-    def minimize_risk(self, min_return):
-        idxoptimum = self._risk_return.loc[self._risk_return['return'] >= min_return, 'risk'].argin()
-        min_risk = self._risk_return.loc[idxoptimum, 'risk']
-        w = self._Ws.loc[idxoptimum]
+        if return_weights or return_param:
+            ret = (ret, )
+
+            if return_weights:
+                ret += (weights, )
+
+            if return_param:
+                ret += (param, )
+            
         
-        return w, min_risk
+        return ret
     
-    def plot_risk_return(self, fmt = '.2%'):
+    def maximize_returns(self, max_risk, return_weights = False, return_max_risk = False):
+        
+        applicable_returns = self._risk_return[self._risk_return['risk'] <= max_risk]
+        idxes = applicable_returns.index
+
+        try:
+            idxoptimum = applicable_returns['return'].argmax()
+        except ValueError:  # risk is too low
+            return self._return_results(
+                result = None, 
+                weights = None, 
+                param = None, 
+                return_weights = return_weights,
+                return_param = return_max_risk
+            )
+        
+        max_ret, min_risk_at_max_ret = applicable_returns.iloc[idxoptimum]
+        w = self._Ws.loc[idxes].iloc[idxoptimum]
+        
+        return self._return_results(
+            result = max_ret,
+            weights = w,
+            param = min_risk_at_max_ret,
+            return_weights = return_weights,
+            return_param = return_max_risk,
+        )
+
+    def minimize_risk(self, min_return, return_weights = False, return_min_return = False):
+        
+        applicable_risk = self._risk_return[self._risk_return['return'] >= min_return]
+        idxes = applicable_risk.index
+
+        try:
+            idxoptimum = applicable_risk['risk'].argmin()
+        except ValueError:  # risk is too low        
+            return self._return_results(
+                result = None,
+                weights = None,
+                param = None,
+                return_weights = return_weights,
+                return_param = return_min_return,
+            )
+        
+        max_return_at_min_risk, min_risk = applicable_risk.iloc[idxoptimum]
+        w = self._Ws.loc[idxes].iloc[idxoptimum]
+        
+        return self._return_results(
+            result = min_risk,
+            weights = w,
+            param = max_return_at_min_risk,
+            return_weights = return_weights,
+            return_param = return_min_return,
+        )
+
+    def plot_risk_return(self, 
+        plot_min_risk = False, 
+        plot_weights = False, 
+        opt_max_risk = None, 
+        opt_min_return = None, 
+        fmt = '.2%'
+    ):
         fig, ax = plt.subplots()
+
+        # mark 0 return
+        ax.axhline(0, ls = '--', color = 'gray', alpha = 0.4)
+
+        # plot the simulated data
         ax.plot(
             self._risk_return['risk'], self._risk_return['return'], 
-            'o', color = 'blue', alpha = 0.2, label = 'Simulated portfolios'
+            'o', color = 'blue', alpha = 0.2, label = 'Simulated portfolios', zorder = 1.1,
         )
+        
+        # plot the original securities returns
         ax.plot(
             self._risks, self._means, 
             'o', color = 'orange', label = 'Original securities'
         )
 
+        # annotate the original securities
         for ativo, s, m in zip(
             self.volmodel.securities_values.columns, 
             self._risks,
@@ -212,11 +296,148 @@ class Optimization:
         ):
             ax.annotate(ativo, (s, m))
 
+        # graph configuration
         ax.set_xlabel(r'Risk/volatility (% p.p.)')
         ax.xaxis.set_major_formatter(lambda x, pos: f'{x:{fmt}}')
         ax.set_ylabel(r'Returns (% p.p.)')
         ax.yaxis.set_major_formatter(lambda y, pos: f'{y:{fmt}}')
         ax.set_title(r'Risk vs Return')
+
+        # minimal risk point if option
+        if plot_min_risk:
+            ax = self._plot_least_risk(ax = ax, plot_weights = plot_weights, fmt = fmt)
+        
+        # plot possible risk minimization/return maximization
+        if opt_max_risk is not None:
+            ax = self._plot_max_return(ax = ax, max_risk = opt_max_risk, plot_weights = plot_weights, fmt = fmt)
+        
+        if opt_min_return is not None:
+            ax = self._plot_min_risk(ax = ax, min_return = opt_min_return, plot_weights = plot_weights, fmt = fmt)
+
         plt.legend()
 
         return fig
+
+    def _plot_least_risk(self, ax, plot_weights, fmt):
+        # identify the minimal risk point
+        idx_min_risk = self._risk_return['risk'].argmin()
+
+        # get the values
+        pt_min_return_at_min_risk, pt_min_risk = self._risk_return.iloc[idx_min_risk]
+
+        # start the label
+        min_risk_label = (
+            fr'Minimal risk = {pt_min_risk:{fmt}}'
+            '\n'
+            fr'Min return @ min risk = {pt_min_return_at_min_risk:{fmt}}'
+        )
+        
+        # add the weights to the label if option
+        if plot_weights:
+            
+            # get the weights
+            ws_at_min_risk = self._Ws.iloc[idx_min_risk]
+            min_risk_label += '\nWeights:'
+            
+            # get the maximum number of characters in the securities' names
+            nfield = pd.Series(ws_at_min_risk.index).apply(len).max() + 4
+            for asset, weight in ws_at_min_risk.iteritems():
+                # add to the label
+                min_risk_label += '\n' + f"{asset:>{nfield}}: {weight:{fmt}}"
+        
+        # plot the minimal risk point
+        ax.plot(
+            pt_min_risk, pt_min_return_at_min_risk, 
+            'o', color = 'red', 
+            label = min_risk_label,
+        )
+
+        return ax
+
+    def _plot_max_return(self, ax, max_risk, plot_weights, fmt):
+        
+        max_ret, w, risk = self.maximize_returns(max_risk = max_risk, return_weights=True, return_max_risk=True)
+        
+        point_max_risk = max_risk
+        point_risk = risk
+        point_return = max_ret
+
+        if point_return is not None:  # max_risk is not so low as to exclude all simulated portfolios
+            label = f'Return @ max risk {point_max_risk:{fmt}} = {point_return:{fmt}}'
+
+            if plot_weights:
+                label += '\nWeights:'
+                # get the maximum number of characters in the securities' names
+                nfield = pd.Series(w.index).apply(len).max() + 4
+                for asset, weight in w.iteritems():
+                    # add to the label
+                    label += '\n' + f"{asset:>{nfield}}: {weight:{fmt}}"
+            
+            ax.plot(point_risk, point_return, 'o', color = 'lightgreen', label = label)
+        
+        # plot boundary limitation
+        ax.axvline(point_max_risk, ls = '--', color = 'lightgreen')
+        
+        y_lims = ax.get_ylim()
+        x_lim_max = ax.get_xlim()[1]
+
+        # annotate the horizontal line for the maximum risk optimization
+        ax.annotate(f'Risk <= {max_risk:{fmt}} p.p.', (point_max_risk*1.04, y_lims[0]*1.04), 
+            ha = 'left', va = 'bottom',
+            color = 'green',
+        )
+
+        # blur simulated whose risks are larger than max_risk
+        ax.fill_betweenx(
+            y = y_lims, 
+            x1 = point_max_risk, 
+            x2 = x_lim_max,
+            color = 'white',
+            alpha = 0.8, zorder = 1.5,
+        )
+
+        return ax
+    
+    def _plot_min_risk(self, ax, min_return, plot_weights, fmt):
+        
+        min_risk, w, ret = self.minimize_risk(min_return = min_return, return_weights = True, return_min_return = True)
+    
+        point_risk = min_risk
+        point_return = ret
+        point_min_return = min_return
+
+        if point_risk is not None:
+            label = f'Risk @ min return {point_return:{fmt}} = {point_risk:{fmt}}'
+
+            if plot_weights:
+                label += '\nWeights:'
+                # get the maximum number of characters in the securities' names
+                nfield = pd.Series(w.index).apply(len).max() + 4
+                for asset, weight in w.iteritems():
+                    # add to the label
+                    label += '\n' + f"{asset:>{nfield}}: {weight:{fmt}}"
+            
+            ax.plot(point_risk, point_return, 'o', color = 'lightgreen', label = label)
+
+        # plot boundary limitation
+        ax.axhline(point_min_return, ls = '--', color = 'lightgreen')
+        
+        x_lims = ax.get_xlim()
+        y_lim_min = ax.get_ylim()[0]
+
+        # annotate the horizontal line for the minimum return optimization
+        ax.annotate(f'Return >= {min_return:{fmt}} p.p.', (x_lims[1], point_min_return*0.96), 
+            ha = 'right', va = 'top',
+            color = 'green',
+        )
+
+        # blur simulated whose returns are lower than min_return
+        ax.fill_between(
+            x = x_lims, 
+            y1 = point_min_return, 
+            y2 = y_lim_min,
+            color = 'white',
+            alpha = 0.8, zorder = 1.5,
+        )
+
+        return ax

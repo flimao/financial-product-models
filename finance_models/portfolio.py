@@ -159,7 +159,6 @@ class Optimization:
         self.nsims = nsims
 
         self.individual_logreturns = self.volmodel.logreturns
-        print(self.individual_logreturns)
         self._cov_matrix = self.individual_logreturns.cov()
         self._means = self.individual_logreturns.mean()
 
